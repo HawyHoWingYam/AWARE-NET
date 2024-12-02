@@ -33,6 +33,14 @@ class Config:
         }
     }
     
+    # Model names from timm
+    MODELS = {
+        'xception': 'xception',
+        'res2net101_26w_4s': 'res2net101_26w_4s',
+        'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns',
+        'ensemble': 'ensemble'
+    }
+    
     # Create all necessary directories recursively
     @classmethod
     def create_directories(cls):
@@ -43,34 +51,42 @@ class Config:
         cls.ANNOTATIONS_DIR.mkdir(exist_ok=True)
         cls.LOG_DIR.mkdir(exist_ok=True)
         
-        # Use exact model names from timm
-        models = [
-            'xception',
-            'res2net101_26w_4s',
-            'tf_efficientnet_b7_ns',
-            'ensemble'
-        ]
-        
-        # Create directories for each model
+        # Create complete directory structure for each dataset and model
         for dataset in ['ff++', 'celebdf']:
-            for model in models:
+            # Create model-specific directories
+            for model_name in cls.MODELS.values():
                 for variant in ['no_aug', 'with_aug']:
-                    (cls.RESULTS_DIR / "weights" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
-                    (cls.RESULTS_DIR / "plots" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
-                    (cls.RESULTS_DIR / "metrics" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
+                    # Weights directory
+                    (cls.RESULTS_DIR / 'weights' / dataset / model_name / variant).mkdir(parents=True, exist_ok=True)
+                    
+                    # Metrics directory
+                    (cls.RESULTS_DIR / 'metrics' / dataset / model_name / variant).mkdir(parents=True, exist_ok=True)
+                    
+                    # Plots directory with augmented samples subdirectory
+                    plots_dir = cls.RESULTS_DIR / 'plots' / dataset / model_name / variant
+                    plots_dir.mkdir(parents=True, exist_ok=True)
+                    if variant == 'with_aug':
+                        (plots_dir / 'augmented_samples').mkdir(exist_ok=True)
         
-        # Setup logging first
+        # Create cross-evaluation directories
+        for source_dataset in ['ff++', 'celebdf']:
+            for model_name in cls.MODELS.values():
+                for target_dataset in ['ff++', 'celebdf']:
+                    if source_dataset != target_dataset:
+                        (cls.RESULTS_DIR / 'cross_evaluation' / source_dataset / model_name / target_dataset).mkdir(parents=True, exist_ok=True)
+        
+        # Setup logging
         cls.setup_logging()
         logger = logging.getLogger(__name__)
-        logger.info("Created directory structure with model names:")
-        for model in models:
-            logger.info(f"- {model}")
+        logger.info("Created directory structure with models:")
+        for model_name in cls.MODELS.values():
+            logger.info(f"- {model_name}")
     
     # Training params
     BATCH_SIZE = 32
-    MAX_EPOCHS = 5
-    PATIENCE = 5
-    MIN_EPOCHS = 1
+    MAX_EPOCHS = 30
+    PATIENCE = 7
+    MIN_EPOCHS = 10
     VALIDATION_FREQ = 1
     
     # Early stopping controls
@@ -93,7 +109,7 @@ class Config:
     WEIGHT_DECAY = 1e-5
     
     # Dataset configs
-    DATASET_FRACTION = 0.1
+    DATASET_FRACTION = 0.5
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
@@ -103,6 +119,25 @@ class Config:
     GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
     MIXED_PRECISION = True  # Use automatic mixed precision
     NUM_WORKERS = 8  # Usually set to number of CPU cores
+    
+    # Augmentation configs
+    AUGMENTATION_RATIO = 0.3  # 30% increase in dataset size
+    AUGMENTATION_PARAMS = {
+        # Geometric transformations
+        'rotation': {'probability': 0.5, 'max_left': 15, 'max_right': 15},
+        'shear': {'probability': 0.3, 'max_shear_left': 10, 'max_shear_right': 10},
+        'flip': {'probability': 0.5},
+        'skew': {'probability': 0.3, 'magnitude': 0.3},
+        
+        # Color transformations
+        'color_jitter': {
+            'probability': 0.3,
+            'brightness': 0.2,  # range: [1-x, 1+x]
+            'contrast': 0.2,
+            'saturation': 0.2,
+            'hue': 0.1  # range: [-x, x]
+        }
+    }
     
     @classmethod
     def optimize_gpu(cls):

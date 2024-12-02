@@ -23,46 +23,121 @@ class DeepfakeDataset(Dataset):
             self.logger.info("Initializing data augmentation pipeline:")
             self.augmentor = Augmentor.Pipeline(".")
             
-            self.logger.info("- Rotation: ±10° with p=0.7")
-            self.augmentor.rotate(probability=0.7, max_left_rotation=10, max_right_rotation=10)
+            # Geometric transformations
+            params = self.config.AUGMENTATION_PARAMS
             
-            self.logger.info("- Horizontal Flip: p=0.5")
-            self.augmentor.flip_left_right(probability=0.5)
+            self.logger.info(f"- Rotation (±{params['rotation']['max_left']}°): p={params['rotation']['probability']}")
+            self.augmentor.rotate(
+                probability=params['rotation']['probability'],
+                max_left_rotation=params['rotation']['max_left'],
+                max_right_rotation=params['rotation']['max_right']
+            )
             
-            self.logger.info("- Brightness Adjustment: ±20% with p=0.7")
-            self.augmentor.random_brightness(probability=0.7, min_factor=0.8, max_factor=1.2)
+            self.logger.info(f"- Shear (±{params['shear']['max_shear_left']}°): p={params['shear']['probability']}")
+            self.augmentor.shear(
+                probability=params['shear']['probability'],
+                max_shear_left=params['shear']['max_shear_left'],
+                max_shear_right=params['shear']['max_shear_right']
+            )
             
-            self.logger.info("- Contrast Adjustment: ±20% with p=0.7")
-            self.augmentor.random_contrast(probability=0.7, min_factor=0.8, max_factor=1.2)
+            self.logger.info(f"- Flip: p={params['flip']['probability']}")
+            self.augmentor.flip_left_right(probability=params['flip']['probability'])
+            
+            self.logger.info(f"- Skew: p={params['skew']['probability']}")
+            self.augmentor.skew(
+                probability=params['skew']['probability'],
+                magnitude=params['skew']['magnitude']
+            )
+            
+            # Color transformations
+            color_params = params['color_jitter']
+            self.logger.info(f"- Color Jitter: p={color_params['probability']}")
+            self.augmentor.random_brightness(
+                probability=color_params['probability'],
+                min_factor=1-color_params['brightness'],
+                max_factor=1+color_params['brightness']
+            )
+            self.augmentor.random_contrast(
+                probability=color_params['probability'],
+                min_factor=1-color_params['contrast'],
+                max_factor=1+color_params['contrast']
+            )
+            self.augmentor.random_color(
+                probability=color_params['probability'],
+                min_factor=1-color_params['saturation'],
+                max_factor=1+color_params['saturation']
+            )
+            
+            # Create augmented versions of the dataset
+            self.augmented_data = self._create_augmented_dataset()
+            self.data = pd.concat([self.data, self.augmented_data], ignore_index=True)
+            self.logger.info(f"Dataset size increased from {len(dataframe)} to {len(self.data)} with augmentations")
             
             # Save sample augmented images
             self.save_augmented_samples()
     
+    def _create_augmented_dataset(self):
+        """Create augmented versions of the dataset"""
+        augmented_data = []
+        
+        # Calculate how many augmented images we need
+        num_images = len(self.data)
+        target_aug_images = int(num_images * self.config.AUGMENTATION_RATIO)
+        
+        self.logger.info(f"Creating {target_aug_images} augmented images ({self.config.AUGMENTATION_RATIO*100}% of {num_images})")
+        
+        # Randomly select images to augment
+        indices = np.random.choice(num_images, size=target_aug_images, replace=True)
+        
+        for idx in indices:
+            row = self.data.iloc[idx]
+            image = Image.open(row['image_path']).convert('RGB')
+            
+            # Create augmented version
+            image_np = np.array(image)
+            aug_image_np = self.augmentor._execute_with_array(image_np)
+            
+            # Create new row with augmented image info
+            aug_row = row.copy()
+            aug_row['is_augmented'] = True
+            augmented_data.append(aug_row)
+        
+        augmented_df = pd.DataFrame(augmented_data)
+        self.logger.info(f"Created {len(augmented_df)} augmented images")
+        
+        return augmented_df
+    
     def save_augmented_samples(self):
         """Save sample augmented images for visualization"""
         try:
-            # Get first 3 images
-            for i in range(min(3, len(self.data))):
-                row = self.data.iloc[i]
+            # Randomly select 3 images
+            sample_indices = np.random.choice(len(self.data), size=3, replace=False)
+            
+            for i, idx in enumerate(sample_indices):
+                row = self.data.iloc[idx]
                 orig_image = Image.open(row['image_path']).convert('RGB')
                 
                 # Create 3x3 grid of augmented images
                 fig, axes = plt.subplots(3, 3, figsize=(12, 12))
-                fig.suptitle('Augmentation Examples', fontsize=16)
+                fig.suptitle('Deepfake-Specific Augmentations', fontsize=16)
                 
-                for i in range(3):
-                    for j in range(3):
-                        # Apply augmentations
-                        aug_image = orig_image.copy()
-                        aug_image_np = np.array(aug_image)
-                        aug_image_np = self.augmentor._execute_with_array(aug_image_np)
-                        aug_image = Image.fromarray(aug_image_np.astype('uint8'))
-                        
-                        # Plot
-                        axes[i, j].imshow(aug_image)
-                        axes[i, j].axis('off')
+                # Original image in center
+                axes[1, 1].imshow(orig_image)
+                axes[1, 1].set_title('Original')
+                axes[1, 1].axis('off')
                 
-                # Save plot using config paths
+                # 8 augmented versions around it
+                aug_positions = [(i,j) for i in range(3) for j in range(3) if (i,j) != (1,1)]
+                for pos in aug_positions:
+                    aug_image = orig_image.copy()
+                    aug_image_np = np.array(aug_image)
+                    aug_image_np = self.augmentor._execute_with_array(aug_image_np)
+                    aug_image = Image.fromarray(aug_image_np.astype('uint8'))
+                    
+                    axes[pos[0], pos[1]].imshow(aug_image)
+                    axes[pos[0], pos[1]].axis('off')
+                
+                # Save plot
                 dataset = 'ff++' if 'ff++' in row['image_path'] else 'celebdf'
                 model_type = self.variant_name.split('_')[1]
                 save_dir = self.config.RESULTS_DIR / 'plots' / dataset / model_type / 'with_aug' / 'augmented_samples'
@@ -73,6 +148,7 @@ class DeepfakeDataset(Dataset):
                 plt.close()
                 
                 self.logger.info(f"Saved augmented sample grid to {save_path}")
+                
         except Exception as e:
             self.logger.error(f"Error saving augmented samples: {str(e)}")
             self.logger.error(f"Error details: {str(e.__class__.__name__)}")
@@ -96,28 +172,6 @@ class DeepfakeDataset(Dataset):
             image = self.transform(image)
             
         return image, row['label']
-    
-    def create_augmented_dataset(self, num_augmentations=3):
-        """Create augmented versions of the dataset"""
-        augmented_data = []
-        
-        for idx in range(len(self.data)):
-            row = self.data.iloc[idx]
-            # Add original image
-            augmented_data.append(row)
-            
-            # Add augmented versions
-            image = Image.open(row['image_path']).convert('RGB')
-            for _ in range(num_augmentations):
-                image_np = np.array(image)
-                aug_image_np = self.augmentor._execute_with_array(image_np)
-                
-                # Create new row with augmented image
-                aug_row = row.copy()
-                aug_row['is_augmented'] = True
-                augmented_data.append(aug_row)
-        
-        return pd.DataFrame(augmented_data)
 
 def create_data_splits(config, dataset_name, force_new=True):
     logger = logging.getLogger(__name__)
