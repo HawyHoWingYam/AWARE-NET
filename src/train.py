@@ -145,7 +145,7 @@ class Trainer:
             parts = self.variant_name.split('_')
             dataset = parts[0]  # ff++ or celebdf
             model_type = parts[1]  # xception, res2net, etc.
-            aug_type = 'with_aug' if 'with' in parts[-1] else 'no_aug'
+            aug_type = 'no_aug' if 'no' in parts[-1] else 'with_aug'
             
             # Create save path with proper structure
             save_dir = self.config.RESULTS_DIR / 'weights' / dataset / model_type / aug_type
@@ -239,17 +239,14 @@ class Trainer:
         self.save_metrics()
     
     def save_metrics(self):
-        # Parse variant name more robustly
-        variant_parts = self.variant_name.split('_')
-        dataset = variant_parts[0]
-        aug_type = variant_parts[-1]
-        # Join middle parts for model type in case it has underscores
-        model_type = '_'.join(variant_parts[1:-1])
+        # Parse variant name correctly
+        parts = self.variant_name.split('_')
+        dataset = parts[0]  # ff++ or celebdf
+        model_type = parts[1]  # xception, res2net, etc.
+        aug_type = 'no_aug' if 'no' in parts[-1] else 'with_aug'
         
-        aug_folder = 'with_aug' if 'with' in aug_type else 'no_aug'
-        
-        # Create metrics directory
-        metrics_dir = self.config.RESULTS_DIR / 'metrics' / dataset / model_type / aug_folder
+        # Create metrics directory with correct structure
+        metrics_dir = self.config.RESULTS_DIR / 'metrics' / dataset / model_type / aug_type
         metrics_dir.mkdir(parents=True, exist_ok=True)
         
         # Save training history
@@ -274,7 +271,7 @@ class Trainer:
             'model_info': {
                 'type': model_type,
                 'dataset': dataset,
-                'augmentation': aug_folder,
+                'augmentation': aug_type,
                 'parameters': sum(p.numel() for p in self.model.parameters())
             }
         }
@@ -282,7 +279,7 @@ class Trainer:
         self.logger.info(f"Saving metrics for {self.variant_name}")
         self.logger.info(f"Model type: {model_type}")
         self.logger.info(f"Dataset: {dataset}")
-        self.logger.info(f"Augmentation: {aug_folder}")
+        self.logger.info(f"Augmentation: {aug_type}")
         
         try:
             with open(history_path, 'w') as f:

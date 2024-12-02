@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import logging
 from datetime import datetime
+from visualization import Visualizer
+from tqdm import tqdm
 
 class ExperimentRunner:
     def __init__(self, config, model, trainer):
@@ -21,11 +23,16 @@ class ExperimentRunner:
             # Train the model first
             self.trainer.train()
             
-            # Parse variant name safely
-            parts = self.trainer.variant_name.split('_')
-            dataset = parts[0]
-            model_type = parts[1]
-            aug_type = 'with_aug' if 'with' in parts[-1] else 'no_aug'
+            # Parse variant name safely and consistently
+            variant_parts = self.trainer.variant_name.split('_')
+            dataset = variant_parts[0]  # ff++ or celebdf
+            model_type = variant_parts[1]  # xception, res2net, etc.
+            is_no_aug = 'no_augmentation' in self.trainer.variant_name
+            aug_type = 'no_aug' if is_no_aug else 'with_aug'
+            
+            self.logger.info(f"\nRunning {'no-augmentation' if is_no_aug else 'with-augmentation'} experiments:")
+            self.logger.info(f"Dataset: {dataset}")
+            self.logger.info(f"Model: {model_type}")
             
             # Test on the dataset
             metrics = self._evaluate_dataset(test_loader, self.trainer.variant_name)
@@ -40,7 +47,15 @@ class ExperimentRunner:
             # Generate visualizations
             plots_dir = self.results_dir / 'plots' / dataset / model_type / aug_type
             plots_dir.mkdir(parents=True, exist_ok=True)
-            self._generate_visualizations(metrics, plots_dir)
+            
+            # Pass augmentation information to visualization
+            self._generate_visualizations(
+                metrics=metrics, 
+                plots_dir=plots_dir,
+                is_no_aug=is_no_aug,
+                dataset=dataset,
+                model_type=model_type
+            )
             
             return metrics
             
@@ -54,32 +69,40 @@ class ExperimentRunner:
         predictions = []
         true_labels = []
         
+        # Add progress bar for evaluation
+        eval_pbar = tqdm(loader, desc='Evaluating', leave=True)
+        
         with torch.no_grad():
-            for images, labels in loader:
+            for images, labels in eval_pbar:
                 images = images.to(self.trainer.device)
                 outputs = self.model(images)
                 
                 # Handle both single model and ensemble outputs
                 if isinstance(outputs, torch.Tensor) and outputs.shape[1] == 2:
-                    # For models outputting class probabilities
-                    probs = torch.softmax(outputs, dim=1)[:, 1]  # Get probability of fake class
+                    probs = torch.softmax(outputs, dim=1)[:, 1]
                 else:
-                    # For models already outputting single probability
                     probs = outputs.squeeze()
                 
                 predictions.extend(probs.cpu().numpy())
                 true_labels.extend(labels.numpy())
+                
+                # Update progress bar with current batch size
+                eval_pbar.set_postfix({
+                    'batch_size': images.size(0),
+                    'gpu_mem': f'{torch.cuda.memory_allocated()/1e9:.1f}GB'
+                })
         
         # Calculate metrics
         predictions = np.array(predictions)
         true_labels = np.array(true_labels)
         
-        # Ensure predictions are 1D
         if len(predictions.shape) > 1:
             predictions = predictions.squeeze()
         
-        # Calculate all metrics
         try:
+            # Calculate metrics with progress updates
+            self.logger.info("Calculating metrics...")
+            
             auc = roc_auc_score(true_labels, predictions)
             pred_labels = (predictions > 0.5).astype(int)
             precision, recall, f1, _ = precision_recall_fscore_support(true_labels, pred_labels, average='binary')
@@ -100,12 +123,15 @@ class ExperimentRunner:
                 'confusion_matrix': confusion_matrix(true_labels, pred_labels).tolist()
             }
             
-            self.logger.info(f"Evaluation metrics for {variant_name}:")
-            self.logger.info(f"AUC: {auc:.4f}")
-            self.logger.info(f"Accuracy: {accuracy:.4f}")
-            self.logger.info(f"F1 Score: {f1:.4f}")
+            # Log metrics with clear formatting
+            self.logger.info(f"\nEvaluation metrics for {variant_name}:")
+            self.logger.info(f"{'='*50}")
+            self.logger.info(f"AUC:       {auc:.4f}")
+            self.logger.info(f"Accuracy:  {accuracy:.4f}")
+            self.logger.info(f"F1 Score:  {f1:.4f}")
             self.logger.info(f"Precision: {precision:.4f}")
-            self.logger.info(f"Recall: {recall:.4f}")
+            self.logger.info(f"Recall:    {recall:.4f}")
+            self.logger.info(f"{'='*50}")
             
         except Exception as e:
             self.logger.error(f"Error calculating metrics: {str(e)}")
@@ -148,19 +174,20 @@ class ExperimentRunner:
                     }, f, indent=4)
                 self.logger.info(f"Saved ensemble weights to {weights_path}")
     
-    def _generate_visualizations(self, metrics, plots_dir):
+    def _generate_visualizations(self, metrics, plots_dir, is_no_aug, dataset, model_type):
         self.logger.info(f"Generating visualizations in {plots_dir}")
         
         # Create Visualizer instance
         visualizer = Visualizer(self.config)
         
-        # Generate all plots
+        # Generate all plots with consistent augmentation info
         visualizer.generate_all_plots(
             metrics_history=self.trainer.metrics_history,
             test_results=metrics,
             model_weights=self.model.get_model_weights() if hasattr(self.model, 'get_model_weights') else None,
-            dataset_name=self.trainer.variant_name.split('_')[0],
-            variant_name=self.trainer.variant_name
+            dataset_name=dataset,
+            model_type=model_type,
+            is_no_aug=is_no_aug
         )
     
     def _plot_model_weights(self, save_path):
