@@ -4,7 +4,7 @@ import timm
 import logging
 
 class BaseModel(nn.Module):
-    def __init__(self, model_name, pretrained=True):
+    def __init__(self, model_name, config, pretrained=True):
         super().__init__()
         self.model_name = model_name
         self.logger = logging.getLogger(__name__)
@@ -14,15 +14,17 @@ class BaseModel(nn.Module):
             self.model = timm.create_model(
                 model_name,
                 pretrained=pretrained,
-                num_classes=2  # Binary classification
+                num_classes=2,  # Binary classification
+                drop_rate=config.DROPOUT_RATE   # Add dropout for regularization
             )
-            self.logger.info(f"Successfully loaded {model_name} with pretrained={pretrained}")
+            
+            # Log model size
+            num_params = sum(p.numel() for p in self.model.parameters())
+            self.logger.info(f"Loaded {model_name} with {num_params:,} parameters")
             
         except Exception as e:
             self.logger.error(f"Error loading {model_name}: {str(e)}")
             raise
-        
-        # No need for sigmoid since we'll use CrossEntropyLoss
     
     def forward(self, x):
         return self.model(x)
@@ -30,7 +32,7 @@ class BaseModel(nn.Module):
 class SingleModelDetector(nn.Module):
     def __init__(self, model_name, config):
         super().__init__()
-        self.model = BaseModel(model_name)
+        self.model = BaseModel(model_name, config)
         self.model_name = model_name
     
     def forward(self, x):
@@ -43,11 +45,11 @@ class SingleModelDetector(nn.Module):
 class EnsembleDeepfakeDetector(nn.Module):
     def __init__(self, config):
         super().__init__()
-        # Initialize architectures
+        # Initialize architectures with config
         self.models = nn.ModuleList([
-            BaseModel('xception'),
-            BaseModel('res2net101_26w_4s'),
-            BaseModel('tf_efficientnet_b7_ns')
+            BaseModel('xception', config),
+            BaseModel('res2net101_26w_4s', config),
+            BaseModel('tf_efficientnet_b7_ns', config)
         ])
         
         # Learnable weights for ensemble

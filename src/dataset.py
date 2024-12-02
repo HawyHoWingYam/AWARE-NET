@@ -8,19 +8,21 @@ from pathlib import Path
 import Augmentor
 import json
 import logging
+import matplotlib.pyplot as plt
 
 class DeepfakeDataset(Dataset):
-    def __init__(self, dataframe, transform=None, augment=False):
+    def __init__(self, dataframe, transform=None, augment=False, variant_name=None, config=None):
         self.data = dataframe
         self.transform = transform
         self.augment = augment
+        self.variant_name = variant_name
+        self.config = config
         self.logger = logging.getLogger(__name__)
         
         if augment:
             self.logger.info("Initializing data augmentation pipeline:")
-            self.augmentor = Augmentor.Pipeline()
+            self.augmentor = Augmentor.Pipeline(".")
             
-            # Log each augmentation
             self.logger.info("- Rotation: ±10° with p=0.7")
             self.augmentor.rotate(probability=0.7, max_left_rotation=10, max_right_rotation=10)
             
@@ -32,6 +34,48 @@ class DeepfakeDataset(Dataset):
             
             self.logger.info("- Contrast Adjustment: ±20% with p=0.7")
             self.augmentor.random_contrast(probability=0.7, min_factor=0.8, max_factor=1.2)
+            
+            # Save sample augmented images
+            self.save_augmented_samples()
+    
+    def save_augmented_samples(self):
+        """Save sample augmented images for visualization"""
+        try:
+            # Get first 3 images
+            for i in range(min(3, len(self.data))):
+                row = self.data.iloc[i]
+                orig_image = Image.open(row['image_path']).convert('RGB')
+                
+                # Create 3x3 grid of augmented images
+                fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+                fig.suptitle('Augmentation Examples', fontsize=16)
+                
+                for i in range(3):
+                    for j in range(3):
+                        # Apply augmentations
+                        aug_image = orig_image.copy()
+                        aug_image_np = np.array(aug_image)
+                        aug_image_np = self.augmentor._execute_with_array(aug_image_np)
+                        aug_image = Image.fromarray(aug_image_np.astype('uint8'))
+                        
+                        # Plot
+                        axes[i, j].imshow(aug_image)
+                        axes[i, j].axis('off')
+                
+                # Save plot using config paths
+                dataset = 'ff++' if 'ff++' in row['image_path'] else 'celebdf'
+                model_type = self.variant_name.split('_')[1]
+                save_dir = self.config.RESULTS_DIR / 'plots' / dataset / model_type / 'with_aug' / 'augmented_samples'
+                save_dir.mkdir(parents=True, exist_ok=True)
+                
+                save_path = save_dir / f'augmented_grid_{i+1}.png'
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                plt.close()
+                
+                self.logger.info(f"Saved augmented sample grid to {save_path}")
+        except Exception as e:
+            self.logger.error(f"Error saving augmented samples: {str(e)}")
+            self.logger.error(f"Error details: {str(e.__class__.__name__)}")
     
     def __len__(self):
         return len(self.data)
@@ -41,12 +85,39 @@ class DeepfakeDataset(Dataset):
         image = Image.open(row['image_path']).convert('RGB')
         
         if self.augment:
-            image = self.augmentor.torch_transform(image)
+            # Convert PIL Image to numpy array
+            image_np = np.array(image)
+            # Apply augmentations
+            image_np = self.augmentor._execute_with_array(image_np)
+            # Convert back to PIL Image
+            image = Image.fromarray(image_np.astype('uint8'))
         
         if self.transform:
             image = self.transform(image)
             
         return image, row['label']
+    
+    def create_augmented_dataset(self, num_augmentations=3):
+        """Create augmented versions of the dataset"""
+        augmented_data = []
+        
+        for idx in range(len(self.data)):
+            row = self.data.iloc[idx]
+            # Add original image
+            augmented_data.append(row)
+            
+            # Add augmented versions
+            image = Image.open(row['image_path']).convert('RGB')
+            for _ in range(num_augmentations):
+                image_np = np.array(image)
+                aug_image_np = self.augmentor._execute_with_array(image_np)
+                
+                # Create new row with augmented image
+                aug_row = row.copy()
+                aug_row['is_augmented'] = True
+                augmented_data.append(aug_row)
+        
+        return pd.DataFrame(augmented_data)
 
 def create_data_splits(config, dataset_name, force_new=True):
     logger = logging.getLogger(__name__)
