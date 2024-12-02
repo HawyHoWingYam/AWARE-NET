@@ -141,15 +141,21 @@ class Trainer:
     
     def save_model(self, epoch, val_loss):
         try:
-            # Parse variant name correctly
+            # Parse variant name correctly and check augmentation status
             parts = self.variant_name.split('_')
             dataset = parts[0]  # ff++ or celebdf
             model_type = parts[1]  # xception, res2net, etc.
-            aug_type = 'no_aug' if 'no' in parts[-1] else 'with_aug'
+            is_no_aug = 'no_augmentation' in self.variant_name
+            aug_type = 'no_aug' if is_no_aug else 'with_aug'
             
             # Create save path with proper structure
             save_dir = self.config.RESULTS_DIR / 'weights' / dataset / model_type / aug_type
             save_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Log the save location for verification
+            self.logger.info(f"Current experiment: {self.variant_name}")
+            self.logger.info(f"Augmentation status: {'disabled' if is_no_aug else 'enabled'}")
+            self.logger.info(f"Saving to directory: {save_dir}")
             
             # Create filename with epoch and loss info
             filename = f'epoch_{epoch+1}_loss_{val_loss:.4f}.pth'
@@ -164,7 +170,8 @@ class Trainer:
                 'scheduler_state_dict': self.scheduler.state_dict(),
                 'val_loss': val_loss,
                 'val_auc': self.best_val_auc,
-                'metrics_history': self.metrics_history
+                'metrics_history': self.metrics_history,
+                'augmentation_status': not is_no_aug  # Store augmentation status in checkpoint
             }
             
             # Remove previous model files with higher validation loss
@@ -187,15 +194,38 @@ class Trainer:
         self.logger.info(f"Starting training for {self.variant_name}")
         self.logger.info(f"Model parameters: {sum(p.numel() for p in self.model.parameters())}")
         
+        # Initialize metrics history with empty lists
+        self.metrics_history = {
+            'train_loss': [],
+            'val_loss': [],
+            'train_auc': [],
+            'val_auc': [],
+            'learning_rates': [],
+            'epoch_times': []
+        }
+        
         best_val_loss = float('inf')
         
         epoch_pbar = tqdm(range(self.config.MAX_EPOCHS), desc='Epochs')
         for epoch in epoch_pbar:
+            epoch_start = time.time()
+            
             # Training
             train_loss, train_auc = self.train_epoch()
             
             # Validation
             val_loss, val_auc, _, _ = self.validate(self.val_loader)
+            
+            # Store current learning rate
+            current_lr = self.scheduler.get_last_lr()[0]
+            
+            # Update metrics history
+            self.metrics_history['train_loss'].append(float(train_loss))
+            self.metrics_history['val_loss'].append(float(val_loss))
+            self.metrics_history['train_auc'].append(float(train_auc))
+            self.metrics_history['val_auc'].append(float(val_auc))
+            self.metrics_history['learning_rates'].append(float(current_lr))
+            self.metrics_history['epoch_times'].append(time.time() - epoch_start)
             
             # Save model if validation loss improves
             if val_loss < best_val_loss:
@@ -203,19 +233,14 @@ class Trainer:
                 self.save_model(epoch, val_loss)
                 self.logger.info(f"New best validation loss: {val_loss:.4f} at epoch {epoch+1}")
             
-            # Update metrics history
-            self.metrics_history['train_loss'].append(train_loss)
-            self.metrics_history['train_auc'].append(train_auc)
-            self.metrics_history['val_loss'].append(val_loss)
-            self.metrics_history['val_auc'].append(val_auc)
-            
             # Update progress bar
             epoch_pbar.set_postfix({
                 'train_loss': f'{train_loss:.4f}',
                 'train_auc': f'{train_auc:.4f}',
                 'val_loss': f'{val_loss:.4f}',
                 'val_auc': f'{val_auc:.4f}',
-                'best_val_loss': f'{best_val_loss:.4f}'
+                'best_val_loss': f'{best_val_loss:.4f}',
+                'lr': f'{current_lr:.2e}'
             })
             
             # Log epoch results
@@ -224,7 +249,7 @@ class Trainer:
                 f"Train Loss: {train_loss:.4f}, Train AUC: {train_auc:.4f}\n"
                 f"Val Loss: {val_loss:.4f}, Val AUC: {val_auc:.4f}\n"
                 f"Best Val Loss: {best_val_loss:.4f}\n"
-                f"Learning Rate: {self.scheduler.get_last_lr()[0]:.2e}"
+                f"Learning Rate: {current_lr:.2e}"
             )
             
             # Update learning rate
@@ -235,58 +260,77 @@ class Trainer:
         self.logger.info(f"\nTraining completed in {total_time/3600:.2f} hours")
         self.logger.info(f"Best validation loss: {best_val_loss:.4f}")
         
+        # Verify metrics were collected
+        self.logger.info("\nMetrics collection summary:")
+        for metric_name, values in self.metrics_history.items():
+            self.logger.info(f"{metric_name}: {len(values)} values collected")
+        
         # Save final metrics
         self.save_metrics()
     
     def save_metrics(self):
-        # Parse variant name correctly
-        parts = self.variant_name.split('_')
-        dataset = parts[0]  # ff++ or celebdf
-        model_type = parts[1]  # xception, res2net, etc.
-        aug_type = 'no_aug' if 'no' in parts[-1] else 'with_aug'
-        
-        # Create metrics directory with correct structure
-        metrics_dir = self.config.RESULTS_DIR / 'metrics' / dataset / model_type / aug_type
-        metrics_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Save training history
-        history_path = metrics_dir / 'training_history.json'
-        self.logger.info(f"Saving training history to {history_path}")
-        
-        # Add more detailed metrics
-        detailed_metrics = {
-            'training_history': self.metrics_history,
-            'final_metrics': {
-                'best_val_auc': self.best_val_auc,
-                'best_val_loss': self.best_val_loss,
-                'best_epoch': self.best_epoch,
-                'total_epochs': self.config.MAX_EPOCHS,
-                'training_params': {
-                    'batch_size': self.config.BATCH_SIZE,
-                    'learning_rate': self.config.LEARNING_RATE,
-                    'weight_decay': self.config.WEIGHT_DECAY,
-                    'augmentations_used': self.train_loader.dataset.augment
-                }
-            },
-            'model_info': {
-                'type': model_type,
-                'dataset': dataset,
-                'augmentation': aug_type,
-                'parameters': sum(p.numel() for p in self.model.parameters())
-            }
-        }
-        
-        self.logger.info(f"Saving metrics for {self.variant_name}")
-        self.logger.info(f"Model type: {model_type}")
-        self.logger.info(f"Dataset: {dataset}")
-        self.logger.info(f"Augmentation: {aug_type}")
-        
         try:
-            with open(history_path, 'w') as f:
-                json.dump(detailed_metrics, f, indent=4)
-            self.logger.info(f"Successfully saved metrics to {history_path}")
+            # Parse variant name correctly
+            parts = self.variant_name.split('_')
+            dataset = parts[0]  # ff++ or celebdf
+            model_type = parts[1]  # xception, res2net, etc.
+            
+            # Determine augmentation type from variant name
+            is_no_aug = 'no_augmentation' in self.variant_name
+            aug_type = 'no_aug' if is_no_aug else 'with_aug'
+            
+            # Log the current experiment details
+            self.logger.info(f"\nSaving metrics for experiment:")
+            self.logger.info(f"Dataset: {dataset}")
+            self.logger.info(f"Model: {model_type}")
+            self.logger.info(f"Augmentation: {'disabled' if is_no_aug else 'enabled'}")
+            
+            # Create metrics directory with correct structure
+            metrics_dir = self.config.RESULTS_DIR / 'metrics' / dataset / model_type / aug_type
+            metrics_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save training history
+            history_path = metrics_dir / 'training_history.json'
+            self.logger.info(f"Saving training history to {history_path}")
+            
+            # Add more detailed metrics
+            detailed_metrics = {
+                'training_history': self.metrics_history,
+                'final_metrics': {
+                    'best_val_auc': self.best_val_auc,
+                    'best_val_loss': self.best_val_loss,
+                    'best_epoch': self.best_epoch,
+                    'total_epochs': self.config.MAX_EPOCHS,
+                    'training_params': {
+                        'batch_size': self.config.BATCH_SIZE,
+                        'learning_rate': self.config.LEARNING_RATE,
+                        'weight_decay': self.config.WEIGHT_DECAY,
+                        'augmentations_used': not is_no_aug
+                    }
+                },
+                'model_info': {
+                    'type': model_type,
+                    'dataset': dataset,
+                    'augmentation': aug_type,
+                    'parameters': sum(p.numel() for p in self.model.parameters())
+                }
+            }
+            
+            # Double check we're saving in the right place
+            self.logger.info(f"Saving to directory: {metrics_dir}")
+            self.logger.info(f"Current experiment is {'without' if is_no_aug else 'with'} augmentation")
+            
+            try:
+                with open(history_path, 'w') as f:
+                    json.dump(detailed_metrics, f, indent=4)
+                self.logger.info(f"Successfully saved metrics to {history_path}")
+            except Exception as e:
+                self.logger.error(f"Error saving metrics: {str(e)}")
+                raise
+            
         except Exception as e:
-            self.logger.error(f"Error saving metrics: {str(e)}")
+            self.logger.error(f"Error in save_metrics: {str(e)}")
+            self.logger.error(f"Variant name: {self.variant_name}")
             raise
     
     def log_gpu_stats(self):

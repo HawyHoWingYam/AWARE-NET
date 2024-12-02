@@ -30,9 +30,10 @@ class ExperimentRunner:
             is_no_aug = 'no_augmentation' in self.trainer.variant_name
             aug_type = 'no_aug' if is_no_aug else 'with_aug'
             
-            self.logger.info(f"\nRunning {'no-augmentation' if is_no_aug else 'with-augmentation'} experiments:")
+            self.logger.info(f"\nRunning experiment for:")
             self.logger.info(f"Dataset: {dataset}")
             self.logger.info(f"Model: {model_type}")
+            self.logger.info(f"Augmentation: {'disabled' if is_no_aug else 'enabled'}")
             
             # Test on the dataset
             metrics = self._evaluate_dataset(test_loader, self.trainer.variant_name)
@@ -40,6 +41,10 @@ class ExperimentRunner:
             # Save results in the correct directory
             results_dir = self.results_dir / 'metrics' / dataset / model_type / aug_type
             results_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Double check we're saving in the right place
+            self.logger.info(f"Saving results to: {results_dir}")
+            self.logger.info(f"Current run is {'without' if is_no_aug else 'with'} augmentation")
             
             # Save results
             self._save_results(metrics, results_dir)
@@ -180,15 +185,48 @@ class ExperimentRunner:
         # Create Visualizer instance
         visualizer = Visualizer(self.config)
         
-        # Generate all plots with consistent augmentation info
-        visualizer.generate_all_plots(
-            metrics_history=self.trainer.metrics_history,
-            test_results=metrics,
-            model_weights=self.model.get_model_weights() if hasattr(self.model, 'get_model_weights') else None,
-            dataset_name=dataset,
-            model_type=model_type,
-            is_no_aug=is_no_aug
-        )
+        # Get training history from trainer
+        metrics_history = self.trainer.metrics_history
+        
+        # Verify metrics data
+        self.logger.info("\nVerifying metrics data before visualization:")
+        self.logger.info("Training History:")
+        for key, values in metrics_history.items():
+            self.logger.info(f"{key}: {len(values)} values, range: [{min(values):.4f}, {max(values):.4f}]")
+        
+        self.logger.info("\nTest Metrics:")
+        self.logger.info(f"AUC: {metrics['performance_metrics']['auc']:.4f}")
+        self.logger.info(f"Accuracy: {metrics['performance_metrics']['accuracy']:.4f}")
+        
+        try:
+            # Generate all plots with consistent augmentation info
+            visualizer.generate_all_plots(
+                metrics_history=metrics_history,
+                test_results={
+                    'performance_metrics': metrics['performance_metrics'],
+                    'raw_data': {
+                        'predictions': metrics['raw_data']['predictions'],
+                        'true_labels': metrics['raw_data']['true_labels']
+                    },
+                    'confusion_matrix': metrics['confusion_matrix']
+                },
+                model_weights=self.model.get_model_weights() if hasattr(self.model, 'get_model_weights') else None,
+                dataset_name=dataset,
+                model_type=model_type,
+                is_no_aug=is_no_aug
+            )
+            
+            self.logger.info("Successfully generated all plots")
+            
+        except Exception as e:
+            self.logger.error(f"Error in visualization generation: {str(e)}")
+            self.logger.error("Metrics History:")
+            for key, value in metrics_history.items():
+                if isinstance(value, list):
+                    self.logger.error(f"{key}: {len(value)} entries, sample: {value[:3]}")
+                else:
+                    self.logger.error(f"{key}: {type(value)}")
+            raise
     
     def _plot_model_weights(self, save_path):
         weights = self.model.get_model_weights()

@@ -43,18 +43,32 @@ class Config:
         cls.ANNOTATIONS_DIR.mkdir(exist_ok=True)
         cls.LOG_DIR.mkdir(exist_ok=True)
         
-        # Create directories for each model and ensemble
-        models = ['xception', 'res2net', 'efficientnet', 'ensemble']
+        # Use exact model names from timm
+        models = [
+            'xception',
+            'res2net101_26w_4s',
+            'tf_efficientnet_b7_ns',
+            'ensemble'
+        ]
+        
+        # Create directories for each model
         for dataset in ['ff++', 'celebdf']:
             for model in models:
                 for variant in ['no_aug', 'with_aug']:
                     (cls.RESULTS_DIR / "weights" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
                     (cls.RESULTS_DIR / "plots" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
                     (cls.RESULTS_DIR / "metrics" / dataset / model / variant).mkdir(parents=True, exist_ok=True)
+        
+        # Setup logging first
+        cls.setup_logging()
+        logger = logging.getLogger(__name__)
+        logger.info("Created directory structure with model names:")
+        for model in models:
+            logger.info(f"- {model}")
     
     # Training params
     BATCH_SIZE = 32
-    MAX_EPOCHS = 1
+    MAX_EPOCHS = 5
     PATIENCE = 5
     MIN_EPOCHS = 1
     VALIDATION_FREQ = 1
