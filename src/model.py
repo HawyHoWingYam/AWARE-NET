@@ -1,59 +1,84 @@
 import torch
 import torch.nn as nn
 import timm
-from pretrainedmodels import xception
+import logging
 
 class BaseModel(nn.Module):
     def __init__(self, model_name, pretrained=True):
         super().__init__()
         self.model_name = model_name
+        self.logger = logging.getLogger(__name__)
         
-        if model_name == 'xception':
-            self.model = xception(pretrained='imagenet')
-            self.model.last_linear = nn.Linear(2048, 1)
-        else:
-            self.model = timm.create_model(model_name, pretrained=pretrained, num_classes=1)
+        try:
+            # Create model with 2 output classes (real/fake)
+            self.model = timm.create_model(
+                model_name,
+                pretrained=pretrained,
+                num_classes=2  # Binary classification
+            )
+            self.logger.info(f"Successfully loaded {model_name} with pretrained={pretrained}")
+            
+        except Exception as e:
+            self.logger.error(f"Error loading {model_name}: {str(e)}")
+            raise
         
-        self.sigmoid = nn.Sigmoid()
+        # No need for sigmoid since we'll use CrossEntropyLoss
     
     def forward(self, x):
-        x = self.model(x)
-        return self.sigmoid(x)
+        return self.model(x)
 
-class HybridDeepfakeDetector(nn.Module):
+class SingleModelDetector(nn.Module):
+    def __init__(self, model_name, config):
+        super().__init__()
+        self.model = BaseModel(model_name)
+        self.model_name = model_name
+    
+    def forward(self, x):
+        return self.model(x)
+    
+    def get_model_weights(self):
+        # For single models, return None or empty array since there are no ensemble weights
+        return None
+
+class EnsembleDeepfakeDetector(nn.Module):
     def __init__(self, config):
         super().__init__()
         # Initialize architectures
-        self.xception = BaseModel('xception')  # Local features
-        self.efficient_net = BaseModel('tf_efficientnet_b4')  # Efficient scaling
-        self.swin = BaseModel('swin_base_patch4_window7_224')  # Global features
+        self.models = nn.ModuleList([
+            BaseModel('xception'),
+            BaseModel('res2net101_26w_4s'),
+            BaseModel('tf_efficientnet_b7_ns')
+        ])
         
-        # Learnable weights for hybrid combination
+        # Learnable weights for ensemble
         self.weights = nn.Parameter(torch.ones(3))
         
-        # Feature fusion layers
+        # Fusion layer
         self.fusion = nn.Sequential(
-            nn.Linear(3, 3),  # Learn relationships between predictions
+            nn.Linear(3, 3),
             nn.ReLU(),
             nn.Dropout(config.DROPOUT_RATE)
         )
         
     def forward(self, x):
-        # Get predictions from different architectures
-        x_pred = self.xception(x)
-        e_pred = self.efficient_net(x)
-        s_pred = self.swin(x)
+        # Get predictions from each model
+        predictions = []
+        for model in self.models:
+            pred = model(x)
+            # Apply softmax to get probabilities
+            pred = torch.softmax(pred, dim=1)[:, 1].unsqueeze(1)  # Get fake probability
+            predictions.append(pred)
         
         # Stack predictions
-        preds = torch.stack([x_pred, e_pred, s_pred], dim=1)  # Shape: [batch_size, 3, 1]
+        preds = torch.stack(predictions, dim=1)  # Shape: [batch_size, 3, 1]
         
-        # Learn relationships and combine
+        # Learn weights and combine
         weights = torch.softmax(self.fusion(preds.squeeze(-1)), dim=1)
-        hybrid_pred = (weights[:, 0].unsqueeze(1) * x_pred + 
-                      weights[:, 1].unsqueeze(1) * e_pred + 
-                      weights[:, 2].unsqueeze(1) * s_pred)
+        ensemble_pred = (weights[:, 0].unsqueeze(1) * predictions[0] + 
+                        weights[:, 1].unsqueeze(1) * predictions[1] + 
+                        weights[:, 2].unsqueeze(1) * predictions[2])
         
-        return hybrid_pred
+        return ensemble_pred
     
     def get_model_weights(self):
         with torch.no_grad():
