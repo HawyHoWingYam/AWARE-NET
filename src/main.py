@@ -10,56 +10,7 @@ from dataset import DeepfakeDataset, create_data_splits
 from model import EnsembleDeepfakeDetector, SingleModelDetector
 from train import Trainer
 from experiments import ExperimentRunner
-
-def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, model_name, model_path):
-    """Evaluate model trained on source dataset on target dataset"""
-    logger = logging.getLogger(__name__)
-    
-    logger.info(f"\nCross-Dataset Evaluation:")
-    logger.info(f"Source Dataset: {source_dataset}")
-    logger.info(f"Target Dataset: {target_dataset}")
-    logger.info(f"Model: {model_name}")
-    
-    # Load target dataset
-    _, _, test_df = create_data_splits(config, target_dataset, force_new=True)
-    
-    # Create test dataset
-    test_dataset = DeepfakeDataset(
-        dataframe=test_df,
-        transform=transform
-    )
-    
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=False,
-        num_workers=4
-    )
-    
-    # Load trained model
-    if model_name == 'ensemble':
-        model = EnsembleDeepfakeDetector(config).cuda()
-    else:
-        model = SingleModelDetector(model_name, config).cuda()
-    
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    
-    # Evaluate
-    metrics = evaluate_model(model, test_loader, f"{source_dataset}_to_{target_dataset}_{model_name}")
-    
-    # Save cross-evaluation results
-    results_dir = config.RESULTS_DIR / 'cross_evaluation' / source_dataset / model_name / target_dataset
-    results_dir.mkdir(parents=True, exist_ok=True)
-    
-    with open(results_dir / 'results.json', 'w') as f:
-        json.dump(metrics, f, indent=4)
-    
-    logger.info(f"\nCross-Evaluation Results ({source_dataset} → {target_dataset}):")
-    logger.info(json.dumps(metrics, indent=2))
-    
-    return metrics
+from cross_evaluation import run_cross_evaluations
 
 def train_all_models(config, transform):
     logger = logging.getLogger(__name__)
@@ -257,30 +208,8 @@ def train_all_models(config, transform):
             logger.info(f"Results for {variant_name}:")
             logger.info(json.dumps(results, indent=2))
     
-    # After training each model, do cross-dataset evaluation
-    logger.info("\n" + "="*50 + "\nPerforming Cross-Dataset Evaluation\n" + "="*50)
-    
-    for model_key, model_config in models_config.items():
-        model_name = model_config['name'] if 'name' in model_config else model_key
-        
-        # FF++ → CelebDF
-        model_path = config.RESULTS_DIR / 'weights' / 'ff++' / model_name / 'no_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'ff++', 'celebdf', model_name, model_path)
-        
-        # CelebDF → FF++
-        model_path = config.RESULTS_DIR / 'weights' / 'celebdf' / model_name / 'no_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'celebdf', 'ff++', model_name, model_path)
-        
-        # Same for augmented models
-        model_path = config.RESULTS_DIR / 'weights' / 'ff++' / model_name / 'with_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'ff++', 'celebdf', model_name, model_path)
-        
-        model_path = config.RESULTS_DIR / 'weights' / 'celebdf' / model_name / 'with_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'celebdf', 'ff++', model_name, model_path)
+    # Run cross-dataset evaluation after training
+    run_cross_evaluations(config, transform, models_config)
 
 def test_celebdf_loading(config):
     logger = logging.getLogger(__name__)

@@ -45,44 +45,97 @@ class SingleModelDetector(nn.Module):
 class EnsembleDeepfakeDetector(nn.Module):
     def __init__(self, config):
         super().__init__()
-        # Initialize architectures with config
-        self.models = nn.ModuleList([
-            BaseModel('xception', config),
-            BaseModel('res2net101_26w_4s', config),
-            BaseModel('tf_efficientnet_b7_ns', config)
-        ])
+        self.logger = logging.getLogger(__name__)
         
-        # Learnable weights for ensemble
-        self.weights = nn.Parameter(torch.ones(3))
+        # Base models configuration
+        self.model_configs = {
+            'legacy_xception': 'xception',  # timm_name: directory_name
+            'res2net101_26w_4s': 'res2net101_26w_4s',
+            'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns'
+        }
         
-        # Fusion layer
-        self.fusion = nn.Sequential(
-            nn.Linear(3, 3),
-            nn.ReLU(),
-            nn.Dropout(config.DROPOUT_RATE)
-        )
+        # Initialize and load pre-trained models
+        self.models = self._initialize_models(config)
         
+        # Initialize ensemble weights (equal weights for each model)
+        num_models = len(self.model_configs)
+        self.model_weights = nn.Parameter(torch.ones(num_models) / num_models)
+    
+    def _initialize_models(self, config):
+        """Initialize and load pre-trained models"""
+        models = nn.ModuleList()
+        
+        for timm_name, dir_name in self.model_configs.items():
+            # Create model
+            model = BaseModel(timm_name, config, pretrained=False)
+            
+            # Load trained weights
+            weights_path = self._get_weights_path(config, dir_name)
+            self._load_model_weights(model, weights_path, timm_name)
+            
+            # Freeze model parameters
+            for param in model.parameters():
+                param.requires_grad = False
+            
+            models.append(model)
+        
+        return models
+    
+    def _get_weights_path(self, config, dir_name):
+        """Get path to model weights"""
+        weights_dir = config.RESULTS_DIR / 'weights' / 'ff++' / dir_name / 'no_aug'
+        
+        if not weights_dir.exists():
+            raise FileNotFoundError(f"Missing weights directory: {weights_dir}")
+        
+        weight_files = list(weights_dir.glob('*.pth'))
+        if not weight_files:
+            raise FileNotFoundError(f"No weight files found in {weights_dir}")
+        
+        return weight_files[0]
+    
+    def _load_model_weights(self, model, weights_path, model_name):
+        """Load pre-trained weights into model"""
+        self.logger.info(f"Loading weights for {model_name} from {weights_path.name}")
+        
+        checkpoint = torch.load(weights_path)
+        state_dict = checkpoint['model_state_dict']
+        
+        # Fix state dict keys
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith('model.model.'):
+                new_key = key.replace('model.model.', 'model.')
+                new_state_dict[new_key] = value
+            else:
+                new_state_dict[key] = value
+        
+        model.load_state_dict(new_state_dict)
+        self.logger.info(f"Successfully loaded weights for {model_name}")
+    
     def forward(self, x):
+        """Forward pass using weighted average ensemble"""
         # Get predictions from each model
         predictions = []
         for model in self.models:
-            pred = model(x)
-            # Apply softmax to get probabilities
-            pred = torch.softmax(pred, dim=1)[:, 1].unsqueeze(1)  # Get fake probability
+            pred = model(x)  # [batch_size, 2]
+            pred = torch.softmax(pred, dim=1)  # Convert to probabilities
             predictions.append(pred)
         
-        # Stack predictions
-        preds = torch.stack(predictions, dim=1)  # Shape: [batch_size, 3, 1]
+        # Stack predictions: [batch_size, num_models, 2]
+        stacked_preds = torch.stack(predictions, dim=1)
         
-        # Learn weights and combine
-        weights = torch.softmax(self.fusion(preds.squeeze(-1)), dim=1)
-        ensemble_pred = (weights[:, 0].unsqueeze(1) * predictions[0] + 
-                        weights[:, 1].unsqueeze(1) * predictions[1] + 
-                        weights[:, 2].unsqueeze(1) * predictions[2])
+        # Apply learned weights
+        weights = torch.softmax(self.model_weights, dim=0)  # Ensure weights sum to 1
+        weighted_preds = stacked_preds * weights.view(1, -1, 1)
         
-        return ensemble_pred
+        # Average predictions
+        ensemble_output = weighted_preds.sum(dim=1)  # [batch_size, 2]
+        
+        return ensemble_output
     
     def get_model_weights(self):
+        """Get current model weights for visualization"""
         with torch.no_grad():
-            dummy_weights = self.fusion(torch.ones(1, 3))
-            return torch.softmax(dummy_weights, dim=1).cpu().numpy() 
+            weights = torch.softmax(self.model_weights, dim=0)
+            return weights.cpu().numpy()

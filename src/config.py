@@ -33,11 +33,11 @@ class Config:
         }
     }
     
-    # Model names from timm
+    # Model names from timm - use exact names
     MODELS = {
-        'xception': 'xception',
-        'res2net101_26w_4s': 'res2net101_26w_4s',
-        'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns',
+        # 'xception': 'legacy_xception',
+        # 'res2net101_26w_4s': 'res2net101_26w_4s',
+        # 'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns',
         'ensemble': 'ensemble'
     }
     

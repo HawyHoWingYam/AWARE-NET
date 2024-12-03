@@ -239,3 +239,88 @@ class ExperimentRunner:
         plt.tight_layout()
         plt.savefig(save_path)
         plt.close() 
+
+    def evaluate_model(self, model, loader, experiment_name):
+        """Evaluate model on given dataset"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"\nEvaluating {experiment_name}")
+        
+        model.eval()
+        predictions = []
+        true_labels = []
+        
+        # Add progress bar for evaluation
+        eval_pbar = tqdm(loader, desc='Evaluating', leave=True)
+        
+        with torch.no_grad():
+            for images, labels in eval_pbar:
+                images = images.to(self.trainer.device)
+                outputs = model(images)
+                
+                # Handle both single model and ensemble outputs
+                if isinstance(outputs, torch.Tensor) and outputs.shape[1] == 2:
+                    probs = torch.softmax(outputs, dim=1)[:, 1]
+                else:
+                    probs = outputs.squeeze()
+                
+                predictions.extend(probs.cpu().numpy())
+                true_labels.extend(labels.numpy())
+                
+                # Update progress bar with current batch size
+                eval_pbar.set_postfix({
+                    'batch_size': images.size(0),
+                    'gpu_mem': f'{torch.cuda.memory_allocated()/1e9:.1f}GB'
+                })
+        
+        # Calculate metrics
+        predictions = np.array(predictions)
+        true_labels = np.array(true_labels)
+        
+        if len(predictions.shape) > 1:
+            predictions = predictions.squeeze()
+        
+        try:
+            # Calculate all metrics
+            auc = roc_auc_score(true_labels, predictions)
+            pred_labels = (predictions > 0.5).astype(int)
+            precision, recall, f1, _ = precision_recall_fscore_support(true_labels, pred_labels, average='binary')
+            accuracy = accuracy_score(true_labels, pred_labels)
+            conf_matrix = confusion_matrix(true_labels, pred_labels)
+            
+            metrics = {
+                'performance_metrics': {
+                    'auc': float(auc),
+                    'accuracy': float(accuracy),
+                    'precision': float(precision),
+                    'recall': float(recall),
+                    'f1': float(f1)
+                },
+                'raw_data': {
+                    'predictions': predictions.tolist(),
+                    'true_labels': true_labels.tolist()
+                },
+                'confusion_matrix': conf_matrix.tolist(),
+                'experiment_info': {
+                    'name': experiment_name,
+                    'num_samples': len(true_labels),
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+            }
+            
+            # Log results
+            logger.info(f"\nResults for {experiment_name}:")
+            logger.info(f"{'='*50}")
+            logger.info(f"AUC:       {auc:.4f}")
+            logger.info(f"Accuracy:  {accuracy:.4f}")
+            logger.info(f"F1 Score:  {f1:.4f}")
+            logger.info(f"Precision: {precision:.4f}")
+            logger.info(f"Recall:    {recall:.4f}")
+            logger.info(f"{'='*50}")
+            
+            return metrics
+            
+        except Exception as e:
+            logger.error(f"Error calculating metrics: {str(e)}")
+            logger.error(f"Predictions shape: {predictions.shape}")
+            logger.error(f"Labels shape: {true_labels.shape}")
+            raise 
