@@ -81,6 +81,11 @@ class Config:
         logger.info("Created directory structure with models:")
         for model_name in cls.MODELS.values():
             logger.info(f"- {model_name}")
+        
+        # Create annotations directory only if needed
+        if cls.ANNOTATION_CACHE:
+            cls.ANNOTATIONS_DIR.mkdir(exist_ok=True)
+            logger.info("Created annotations directory for caching")
     
     # Training params
     BATCH_SIZE = 32
@@ -139,6 +144,10 @@ class Config:
         }
     }
     
+    # Annotation configs
+    FORCE_NEW_ANNOTATIONS = False  # Whether to force create new annotations
+    ANNOTATION_CACHE = True        # Whether to use cached annotations
+    
     @classmethod
     def optimize_gpu(cls):
         if torch.cuda.is_available():
@@ -149,15 +158,41 @@ class Config:
     
     @staticmethod
     def setup_logging():
+        # Create a custom filter
+        class ImageDebugFilter(logging.Filter):
+            def filter(self, record):
+                # Filter out PIL debug messages and matplotlib font messages
+                image_debug_patterns = [
+                    'PIL',
+                    'matplotlib',
+                    'font',
+                    'findfont',
+                    'FigureCanvasAgg',
+                    'loaded glyphs',
+                    'drawing contour'
+                ]
+                return not any(pattern in record.getMessage() for pattern in image_debug_patterns)
+        
+        # Setup basic logging
         logging.basicConfig(
-            level=logging.DEBUG,
+            level=logging.INFO,  # Change base level to INFO
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.FileHandler(Config.LOG_DIR / 'training.log'),
                 logging.StreamHandler()
             ]
         )
-        # Add file handler for debug logs
+        
+        # Get root logger
+        root_logger = logging.getLogger()
+        
+        # Add filter to all handlers
+        for handler in root_logger.handlers:
+            handler.addFilter(ImageDebugFilter())
+        
+        # Add debug handler for non-image related debug messages
         debug_handler = logging.FileHandler(Config.LOG_DIR / 'debug.log')
         debug_handler.setLevel(logging.DEBUG)
-        logging.getLogger().addHandler(debug_handler)
+        debug_handler.addFilter(ImageDebugFilter())
+        debug_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        root_logger.addHandler(debug_handler)

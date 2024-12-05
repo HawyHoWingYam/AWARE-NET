@@ -190,7 +190,12 @@ def train_all_models(config, transform):
             if model_config['type'] == 'single':
                 model = SingleModelDetector(model_name, config).cuda()
             else:
-                model = EnsembleDeepfakeDetector(config).cuda()
+                # Check if we're using augmentation based on variant name
+                is_augmented = 'with_augmentation' in variant_name
+                model = EnsembleDeepfakeDetector(
+                    config=config,
+                    augment=is_augmented
+                ).cuda()
             
             # Train and evaluate
             trainer = Trainer(

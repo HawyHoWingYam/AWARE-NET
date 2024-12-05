@@ -104,6 +104,14 @@ class Trainer:
         epoch_loss = total_loss / len(self.train_loader)
         epoch_auc = roc_auc_score(true_labels, predictions)
         
+        # Log model weights if it's an ensemble
+        if hasattr(self.model, 'get_model_weights'):
+            weights = self.model.get_model_weights()
+            self.logger.info("\nEnsemble Model Weights:")
+            model_names = ['Xception', 'Res2Net101', 'EfficientNet']
+            for name, weight in zip(model_names, weights):
+                self.logger.info(f"{name}: {weight:.3f}")
+        
         return epoch_loss, epoch_auc
     
     def validate(self, loader):
@@ -141,19 +149,33 @@ class Trainer:
     
     def save_model(self, epoch, val_loss):
         try:
-            # Parse variant name correctly and check augmentation status
+            # Parse variant name correctly
             parts = self.variant_name.split('_')
             dataset = parts[0]  # ff++ or celebdf
-            model_type = parts[1]  # xception, res2net, etc.
+            
+            # Use timm-specific model names for directory structure
+            model_name_map = {
+                'xception': 'legacy_xception',
+                'res2net101': 'res2net101_26w_4s',
+                'efficientnet': 'tf_efficientnet_b7_ns',
+                'ensemble': 'ensemble'
+            }
+            
+            # Get the model type and map to timm name if needed
+            model_type = parts[1]  # xception, res2net101, etc.
+            model_dir_name = model_name_map.get(model_type, model_type)
+            
+            # Determine augmentation type
             is_no_aug = 'no_augmentation' in self.variant_name
             aug_type = 'no_aug' if is_no_aug else 'with_aug'
             
-            # Create save path with proper structure
-            save_dir = self.config.RESULTS_DIR / 'weights' / dataset / model_type / aug_type
+            # Create save path with proper structure using timm model name
+            save_dir = self.config.RESULTS_DIR / 'weights' / dataset / model_dir_name / aug_type
             save_dir.mkdir(parents=True, exist_ok=True)
             
             # Log the save location for verification
             self.logger.info(f"Current experiment: {self.variant_name}")
+            self.logger.info(f"Using timm model name: {model_dir_name}")
             self.logger.info(f"Augmentation status: {'disabled' if is_no_aug else 'enabled'}")
             self.logger.info(f"Saving to directory: {save_dir}")
             
@@ -171,7 +193,8 @@ class Trainer:
                 'val_loss': val_loss,
                 'val_auc': self.best_val_auc,
                 'metrics_history': self.metrics_history,
-                'augmentation_status': not is_no_aug  # Store augmentation status in checkpoint
+                'augmentation_status': not is_no_aug,
+                'model_name': model_dir_name  # Store timm model name in checkpoint
             }
             
             # Remove previous model files with higher validation loss

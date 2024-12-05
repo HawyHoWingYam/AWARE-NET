@@ -22,6 +22,26 @@ A comprehensive framework for deepfake detection using ensemble learning, combin
   - Advanced augmentation techniques
   - Structured annotation management
 
+## Configuration Options
+
+### Data Management
+- **Dataset Fraction**: Control how much of the dataset to use (default: 0.5)
+- **Train/Val/Test Split**: 70/15/15 split ratio
+- **Annotation Management**:
+  - `FORCE_NEW_ANNOTATIONS`: Force create new dataset splits (default: False)
+  - `ANNOTATION_CACHE`: Cache and reuse dataset splits (default: True)
+
+### Training Pipeline
+1. **Data Preparation**:
+   - Configure annotation caching in `config.py`
+   - Set `FORCE_NEW_ANNOTATIONS=True` for fresh splits
+   - Use cached splits for faster repeated runs
+
+2. **Model Training**:
+   - Train individual models first
+   - Train ensemble model
+   - Cross-dataset evaluation
+
 # Recommended training order
 1. Train individual models first without augmentation:
    - Xception (good at local features)
@@ -37,3 +57,5 @@ A comprehensive framework for deepfake detection using ensemble learning, combin
    - Initialize with pre-trained individual models
    - Fine-tune ensemble weights
    - Use both augmented and non-augmented data
+
+## Usage

@@ -173,19 +173,24 @@ class DeepfakeDataset(Dataset):
             
         return image, row['label']
 
-def create_data_splits(config, dataset_name, force_new=True):
+def create_data_splits(config, dataset_name, force_new=None):
     logger = logging.getLogger(__name__)
     
-    # Check for existing annotations
-    annotation_file = config.ANNOTATIONS_DIR / f'{dataset_name}_splits.json'
+    # Check if we should use force_new from config
+    if force_new is None:
+        force_new = config.FORCE_NEW_ANNOTATIONS
     
-    if annotation_file.exists() and not force_new:
-        logger.info(f"Loading existing {dataset_name} annotations...")
-        with open(annotation_file, 'r') as f:
-            splits = json.load(f)
-            return pd.DataFrame(splits['train']), pd.DataFrame(splits['val']), pd.DataFrame(splits['test'])
+    # Check for existing annotations if caching is enabled
+    if config.ANNOTATION_CACHE:
+        annotation_file = config.ANNOTATIONS_DIR / f'{dataset_name}_splits.json'
+        
+        if annotation_file.exists() and not force_new:
+            logger.info(f"Loading cached {dataset_name} annotations...")
+            with open(annotation_file, 'r') as f:
+                splits = json.load(f)
+                return pd.DataFrame(splits['train']), pd.DataFrame(splits['val']), pd.DataFrame(splits['test'])
     
-    logger.info(f"Creating new annotations for {dataset_name} with {config.DATASET_FRACTION * 100}% of data")
+    logger.info(f"Creating new annotations for {dataset_name}")
     logger.info(f"Starting data loading process for {dataset_name} dataset")
     logger.info(f"Looking for data in {config.DATA_DIR}")
     logger.info(f"Using {config.DATASET_FRACTION * 100}% of total data")
@@ -273,14 +278,16 @@ def create_data_splits(config, dataset_name, force_new=True):
     logger.info(f"Validation set: {len(val_df)} samples ({len(val_df[val_df['label'] == 0])} real, {len(val_df[val_df['label'] == 1])} fake)")
     logger.info(f"Test set: {len(test_df)} samples ({len(test_df[test_df['label'] == 0])} real, {len(test_df[test_df['label'] == 1])} fake)")
     
-    # Save annotations
-    splits = {
-        'train': train_df.to_dict('records'),
-        'val': val_df.to_dict('records'),
-        'test': test_df.to_dict('records')
-    }
-    
-    with open(annotation_file, 'w') as f:
-        json.dump(splits, f, indent=4)
+    # Save annotations if caching is enabled
+    if config.ANNOTATION_CACHE:
+        splits = {
+            'train': train_df.to_dict('records'),
+            'val': val_df.to_dict('records'),
+            'test': test_df.to_dict('records')
+        }
+        
+        with open(annotation_file, 'w') as f:
+            json.dump(splits, f, indent=4)
+        logger.info(f"Cached annotations to {annotation_file}")
     
     return train_df, val_df, test_df 

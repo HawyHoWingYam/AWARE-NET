@@ -43,9 +43,10 @@ class SingleModelDetector(nn.Module):
         return None
 
 class EnsembleDeepfakeDetector(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, augment=False):
         super().__init__()
         self.logger = logging.getLogger(__name__)
+        self.augment = augment
         
         # Base models configuration
         self.model_configs = {
@@ -57,33 +58,19 @@ class EnsembleDeepfakeDetector(nn.Module):
         # Initialize and load pre-trained models
         self.models = self._initialize_models(config)
         
-        # Initialize ensemble weights (equal weights for each model)
-        num_models = len(self.model_configs)
+        # Initialize ensemble weights as learnable parameters (Equal weights for each model)
+        num_models = len(self.model_configs)  # 3 models
         self.model_weights = nn.Parameter(torch.ones(num_models) / num_models)
-    
-    def _initialize_models(self, config):
-        """Initialize and load pre-trained models"""
-        models = nn.ModuleList()
-        
-        for timm_name, dir_name in self.model_configs.items():
-            # Create model
-            model = BaseModel(timm_name, config, pretrained=False)
-            
-            # Load trained weights
-            weights_path = self._get_weights_path(config, dir_name)
-            self._load_model_weights(model, weights_path, timm_name)
-            
-            # Freeze model parameters
-            for param in model.parameters():
-                param.requires_grad = False
-            
-            models.append(model)
-        
-        return models
+        # Initially: [0.333, 0.333, 0.333]
     
     def _get_weights_path(self, config, dir_name):
-        """Get path to model weights"""
-        weights_dir = config.RESULTS_DIR / 'weights' / 'ff++' / dir_name / 'no_aug'
+        """Get path to model weights based on augmentation setting"""
+        # Choose weights directory based on augmentation
+        aug_type = 'with_aug' if self.augment else 'no_aug'
+        weights_dir = config.RESULTS_DIR / 'weights' / 'ff++' / dir_name / aug_type
+        
+        self.logger.info(f"Looking for weights in: {weights_dir}")
+        self.logger.info(f"Augmentation status: {'enabled' if self.augment else 'disabled'}")
         
         if not weights_dir.exists():
             raise FileNotFoundError(f"Missing weights directory: {weights_dir}")
@@ -92,26 +79,61 @@ class EnsembleDeepfakeDetector(nn.Module):
         if not weight_files:
             raise FileNotFoundError(f"No weight files found in {weights_dir}")
         
+        # Sort by loss value if multiple files exist
+        if len(weight_files) > 1:
+            weight_files.sort(key=lambda x: float(str(x).split('loss_')[-1].replace('.pth', '')))
+            self.logger.info(f"Multiple weight files found, using best: {weight_files[0].name}")
+        
         return weight_files[0]
+    
+    def _initialize_models(self, config):
+        """Initialize and load pre-trained models"""
+        models = nn.ModuleList()
+        
+        for timm_name, dir_name in self.model_configs.items():
+            try:
+                # Create model
+                model = BaseModel(timm_name, config, pretrained=False)
+                
+                # Load trained weights
+                weights_path = self._get_weights_path(config, dir_name)
+                self._load_model_weights(model, weights_path, timm_name)
+                
+                # Freeze base model parameters
+                for param in model.parameters():
+                    param.requires_grad = False
+                
+                models.append(model)
+                
+            except Exception as e:
+                self.logger.error(f"Error initializing {timm_name}: {str(e)}")
+                raise
+        
+        return models
     
     def _load_model_weights(self, model, weights_path, model_name):
         """Load pre-trained weights into model"""
         self.logger.info(f"Loading weights for {model_name} from {weights_path.name}")
         
-        checkpoint = torch.load(weights_path)
-        state_dict = checkpoint['model_state_dict']
-        
-        # Fix state dict keys
-        new_state_dict = {}
-        for key, value in state_dict.items():
-            if key.startswith('model.model.'):
-                new_key = key.replace('model.model.', 'model.')
-                new_state_dict[new_key] = value
-            else:
-                new_state_dict[key] = value
-        
-        model.load_state_dict(new_state_dict)
-        self.logger.info(f"Successfully loaded weights for {model_name}")
+        try:
+            checkpoint = torch.load(weights_path)
+            state_dict = checkpoint['model_state_dict']
+            
+            # Fix state dict keys
+            new_state_dict = {}
+            for key, value in state_dict.items():
+                if key.startswith('model.model.'):
+                    new_key = key.replace('model.model.', 'model.')
+                    new_state_dict[new_key] = value
+                else:
+                    new_state_dict[key] = value
+            
+            model.load_state_dict(new_state_dict)
+            self.logger.info(f"Successfully loaded weights for {model_name}")
+            
+        except Exception as e:
+            self.logger.error(f"Error loading weights for {model_name}: {str(e)}")
+            raise
     
     def forward(self, x):
         """Forward pass using weighted average ensemble"""
@@ -126,7 +148,7 @@ class EnsembleDeepfakeDetector(nn.Module):
         stacked_preds = torch.stack(predictions, dim=1)
         
         # Apply learned weights
-        weights = torch.softmax(self.model_weights, dim=0)  # Ensure weights sum to 1
+        weights = torch.softmax(self.model_weights, dim=0)  # Ensures weights sum to 1
         weighted_preds = stacked_preds * weights.view(1, -1, 1)
         
         # Average predictions
@@ -135,7 +157,7 @@ class EnsembleDeepfakeDetector(nn.Module):
         return ensemble_output
     
     def get_model_weights(self):
-        """Get current model weights for visualization"""
+        """Get normalized weights for visualization"""
         with torch.no_grad():
             weights = torch.softmax(self.model_weights, dim=0)
             return weights.cpu().numpy()
