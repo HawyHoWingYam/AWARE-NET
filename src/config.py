@@ -4,7 +4,7 @@ import torch
 
 class Config:
     # Paths
-    ROOT_DIR = Path("E:/DeepScan/deepfake_cluster/dlib-face")
+    ROOT_DIR = Path("E:/DeepScan/deepfake_cluster/test-dlib-face")
     DATA_DIR = ROOT_DIR / "faces"
     RESULTS_DIR = ROOT_DIR / "results"
     WEIGHTS_DIR = RESULTS_DIR / "weights"
@@ -35,9 +35,9 @@ class Config:
     
     # Model names from timm - use exact names
     MODELS = {
-        # 'xception': 'legacy_xception',
-        # 'res2net101_26w_4s': 'res2net101_26w_4s',
-        # 'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns',
+        'xception': 'legacy_xception',
+        'res2net101_26w_4s': 'res2net101_26w_4s',
+        'tf_efficientnet_b7_ns': 'tf_efficientnet_b7_ns',
         'ensemble': 'ensemble'
     }
     
@@ -114,7 +114,7 @@ class Config:
     WEIGHT_DECAY = 1e-5
     
     # Dataset configs
-    DATASET_FRACTION = 0.5
+    DATASET_FRACTION = 0.05
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15

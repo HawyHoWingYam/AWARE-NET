@@ -107,10 +107,11 @@ class Trainer:
         # Log model weights if it's an ensemble
         if hasattr(self.model, 'get_model_weights'):
             weights = self.model.get_model_weights()
-            self.logger.info("\nEnsemble Model Weights:")
-            model_names = ['Xception', 'Res2Net101', 'EfficientNet']
-            for name, weight in zip(model_names, weights):
-                self.logger.info(f"{name}: {weight:.3f}")
+            if weights is not None:  # Only log weights for ensemble model
+                self.logger.info("\nEnsemble Model Weights:")
+                model_names = ['Xception', 'Res2Net101', 'EfficientNet']
+                for name, weight in zip(model_names, weights):
+                    self.logger.info(f"{name}: {weight:.3f}")
         
         return epoch_loss, epoch_auc
     
@@ -169,8 +170,8 @@ class Trainer:
             is_no_aug = 'no_augmentation' in self.variant_name
             aug_type = 'no_aug' if is_no_aug else 'with_aug'
             
-            # Create save path with proper structure using timm model name
-            save_dir = self.config.RESULTS_DIR / 'weights' / dataset / model_dir_name / aug_type
+            # Use config's WEIGHTS_DIR
+            save_dir = self.config.WEIGHTS_DIR / dataset / model_dir_name / aug_type
             save_dir.mkdir(parents=True, exist_ok=True)
             
             # Log the save location for verification
@@ -179,12 +180,7 @@ class Trainer:
             self.logger.info(f"Augmentation status: {'disabled' if is_no_aug else 'enabled'}")
             self.logger.info(f"Saving to directory: {save_dir}")
             
-            # Create filename with epoch and loss info
-            filename = f'epoch_{epoch+1}_loss_{val_loss:.4f}.pth'
-            save_path = save_dir / filename
-            
-            self.logger.info(f"Saving model checkpoint to {save_path}")
-            
+            # Create checkpoint
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': self.model.state_dict(),
@@ -194,19 +190,21 @@ class Trainer:
                 'val_auc': self.best_val_auc,
                 'metrics_history': self.metrics_history,
                 'augmentation_status': not is_no_aug,
-                'model_name': model_dir_name  # Store timm model name in checkpoint
+                'model_name': model_dir_name
             }
             
-            # Remove previous model files with higher validation loss
-            for old_file in save_dir.glob('epoch_*.pth'):
-                old_loss = float(str(old_file).split('loss_')[-1].split('.pth')[0])
-                if old_loss > val_loss:
-                    self.logger.info(f"Removing previous model with higher loss: {old_file}")
+            # Save model if it's the best so far (based on validation loss)
+            model_path = save_dir / f'loss_{val_loss:.4f}.pth'
+            if not list(save_dir.glob('*.pth')) or val_loss < self.best_val_loss:
+                # Remove previous model file if it exists
+                for old_file in save_dir.glob('*.pth'):
                     old_file.unlink()
-            
-            # Save new model
-            torch.save(checkpoint, save_path)
-            self.logger.info(f"Successfully saved checkpoint with validation loss: {val_loss:.4f}")
+                    self.logger.info(f"Removed previous model: {old_file.name}")
+                
+                # Save new best model
+                self.best_val_loss = val_loss
+                torch.save(checkpoint, model_path)
+                self.logger.info(f"Saved new best model with validation loss: {val_loss:.4f}")
             
         except Exception as e:
             self.logger.error(f"Error saving model: {str(e)}")

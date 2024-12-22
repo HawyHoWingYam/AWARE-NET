@@ -21,7 +21,6 @@ def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, mo
     # Load target dataset
     _, _, test_df = create_data_splits(config, target_dataset, force_new=True)
     
-    # Create test dataset
     test_dataset = DeepfakeDataset(
         dataframe=test_df,
         transform=transform,
@@ -38,9 +37,24 @@ def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, mo
     
     # Load trained model
     if model_name == 'ensemble':
-        model = EnsembleDeepfakeDetector(config).cuda()
+        model = EnsembleDeepfakeDetector(
+            config=config,
+            dataset=source_dataset,
+            augment='with_aug' in str(model_path)
+        ).cuda()
     else:
         model = SingleModelDetector(model_name, config).cuda()
+    
+    # Get the weights directory
+    weights_dir = config.WEIGHTS_DIR / source_dataset / model_name / ('no_aug' if 'no_aug' in str(model_path) else 'with_aug')
+    
+    # Find the weight file (should be only one)
+    weight_files = list(weights_dir.glob('*.pth'))
+    if not weight_files:
+        raise FileNotFoundError(f"No model weights found in {weights_dir}")
+    
+    model_path = weight_files[0]  # There should be only one file
+    logger.info(f"Loading model from: {model_path}")
     
     checkpoint = torch.load(model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -76,21 +90,14 @@ def run_cross_evaluations(config, transform, models_config):
     for model_key, model_config in models_config.items():
         model_name = model_config['name'] if 'name' in model_config else model_key
         
-        # FF++ → CelebDF
-        model_path = config.RESULTS_DIR / 'weights' / 'ff++' / model_name / 'no_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'ff++', 'celebdf', model_name, model_path)
-        
-        # CelebDF → FF++
-        model_path = config.RESULTS_DIR / 'weights' / 'celebdf' / model_name / 'no_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'celebdf', 'ff++', model_name, model_path)
-        
-        # Same for augmented models
-        model_path = config.RESULTS_DIR / 'weights' / 'ff++' / model_name / 'with_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'ff++', 'celebdf', model_name, model_path)
-        
-        model_path = config.RESULTS_DIR / 'weights' / 'celebdf' / model_name / 'with_aug' / 'best_model.pth'
-        if model_path.exists():
-            cross_dataset_evaluate(config, transform, 'celebdf', 'ff++', model_name, model_path) 
+        # Check for models in both no_aug and with_aug directories
+        for aug_type in ['no_aug', 'with_aug']:
+            # FF++ → CelebDF
+            weights_dir = config.WEIGHTS_DIR / 'ff++' / model_name / aug_type
+            if list(weights_dir.glob('*.pth')):
+                cross_dataset_evaluate(config, transform, 'ff++', 'celebdf', model_name, weights_dir)
+            
+            # CelebDF → FF++
+            weights_dir = config.WEIGHTS_DIR / 'celebdf' / model_name / aug_type
+            if list(weights_dir.glob('*.pth')):
+                cross_dataset_evaluate(config, transform, 'celebdf', 'ff++', model_name, weights_dir)

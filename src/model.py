@@ -43,10 +43,12 @@ class SingleModelDetector(nn.Module):
         return None
 
 class EnsembleDeepfakeDetector(nn.Module):
-    def __init__(self, config, augment=False):
+    def __init__(self, config, augment=False, dataset=None, variant_name=None):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         self.augment = augment
+        self.dataset = dataset
+        self.variant_name = variant_name
         
         # Base models configuration
         self.model_configs = {
@@ -56,20 +58,25 @@ class EnsembleDeepfakeDetector(nn.Module):
         }
         
         # Initialize and load pre-trained models
-        self.models = self._initialize_models(config)
+        self.models = self._initialize_models(config, dataset)
         
-        # Initialize ensemble weights as learnable parameters (Equal weights for each model)
-        num_models = len(self.model_configs)  # 3 models
+        # Initialize ensemble weights as learnable parameters
+        num_models = len(self.model_configs)
         self.model_weights = nn.Parameter(torch.ones(num_models) / num_models)
-        # Initially: [0.333, 0.333, 0.333]
     
-    def _get_weights_path(self, config, dir_name):
-        """Get path to model weights based on augmentation setting"""
+    def _get_weights_path(self, config, dir_name, dataset=None):
+        """Get path to model weights based on augmentation setting and dataset"""
         # Choose weights directory based on augmentation
         aug_type = 'with_aug' if self.augment else 'no_aug'
-        weights_dir = config.RESULTS_DIR / 'weights' / 'ff++' / dir_name / aug_type
+        
+        # Determine dataset - default to ff++ if not specified
+        dataset = dataset or 'ff++'
+        
+        # Use config's WEIGHTS_DIR with dynamic dataset path
+        weights_dir = config.WEIGHTS_DIR / dataset / dir_name / aug_type
         
         self.logger.info(f"Looking for weights in: {weights_dir}")
+        self.logger.info(f"Dataset: {dataset}")
         self.logger.info(f"Augmentation status: {'enabled' if self.augment else 'disabled'}")
         
         if not weights_dir.exists():
@@ -86,17 +93,21 @@ class EnsembleDeepfakeDetector(nn.Module):
         
         return weight_files[0]
     
-    def _initialize_models(self, config):
+    def _initialize_models(self, config, dataset=None):
         """Initialize and load pre-trained models"""
         models = nn.ModuleList()
+        
+        # Get dataset from config or variant name if available
+        if hasattr(self, 'variant_name'):
+            dataset = self.variant_name.split('_')[0]  # Extract dataset from variant name
         
         for timm_name, dir_name in self.model_configs.items():
             try:
                 # Create model
                 model = BaseModel(timm_name, config, pretrained=False)
                 
-                # Load trained weights
-                weights_path = self._get_weights_path(config, dir_name)
+                # Load trained weights with dataset parameter
+                weights_path = self._get_weights_path(config, dir_name, dataset)
                 self._load_model_weights(model, weights_path, timm_name)
                 
                 # Freeze base model parameters
