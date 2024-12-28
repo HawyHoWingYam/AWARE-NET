@@ -245,7 +245,11 @@ class ExperimentRunner:
         logger = logging.getLogger(__name__)
         logger.info(f"\nEvaluating {experiment_name}")
         
+        # Use cuda if available, even without trainer
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = model.to(device)
         model.eval()
+        
         predictions = []
         true_labels = []
         
@@ -254,7 +258,7 @@ class ExperimentRunner:
         
         with torch.no_grad():
             for images, labels in eval_pbar:
-                images = images.to(self.trainer.device)
+                images = images.to(device)
                 outputs = model(images)
                 
                 # Handle both single model and ensemble outputs
@@ -273,13 +277,11 @@ class ExperimentRunner:
                 })
         
         # Calculate metrics
-        predictions = np.array(predictions)
-        true_labels = np.array(true_labels)
-        
-        if len(predictions.shape) > 1:
-            predictions = predictions.squeeze()
-        
         try:
+            # Convert lists to numpy arrays
+            predictions = np.array(predictions)
+            true_labels = np.array(true_labels)
+            
             # Calculate all metrics
             auc = roc_auc_score(true_labels, predictions)
             pred_labels = (predictions > 0.5).astype(int)
@@ -321,6 +323,6 @@ class ExperimentRunner:
             
         except Exception as e:
             logger.error(f"Error calculating metrics: {str(e)}")
-            logger.error(f"Predictions shape: {predictions.shape}")
-            logger.error(f"Labels shape: {true_labels.shape}")
+            logger.error(f"Predictions shape: {len(predictions)}")
+            logger.error(f"Labels shape: {len(true_labels)}")
             raise 

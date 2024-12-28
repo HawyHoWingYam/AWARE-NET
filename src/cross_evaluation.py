@@ -61,7 +61,7 @@ def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, mo
     model.eval()
     
     # Create experimenter for evaluation
-    experimenter = ExperimentRunner(config, model, None)  # No trainer needed for evaluation
+    experimenter = ExperimentRunner(config, model, None)  # No trainer needed for evaluationm
     
     # Evaluate
     metrics = experimenter.evaluate_model(
@@ -77,7 +77,7 @@ def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, mo
     with open(results_dir / 'results.json', 'w') as f:
         json.dump(metrics, f, indent=4)
     
-    logger.info(f"\nCross-Evaluation Results ({source_dataset} → {target_dataset}):")
+    logger.info(f"\nCross-Evaluation Results ({source_dataset} -> {target_dataset}):")
     logger.info(json.dumps(metrics['performance_metrics'], indent=2))
     
     return metrics

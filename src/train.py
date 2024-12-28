@@ -11,12 +11,16 @@ from model import EnsembleDeepfakeDetector
 import time
 
 class Trainer:
-    def __init__(self, model, config, train_loader, val_loader, test_loader, variant_name=None):
+    def __init__(self, model, train_loader, val_loader, config, variant_name, test_loader=None):
         self.model = model
-        self.config = config
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.test_loader = test_loader
+        self.config = config
+        self.variant_name = variant_name
+        self.logger = logging.getLogger(__name__)
+        self.best_val_loss = float('inf')  # Track best validation loss
+        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         self.criterion = nn.CrossEntropyLoss()
@@ -37,9 +41,6 @@ class Trainer:
             'train_auc': [], 'val_auc': [],
             'learning_rates': [], 'epoch_times': []
         }
-        self.logger = logging.getLogger(__name__)
-        self.variant_name = variant_name
-        self.best_val_loss = float('inf')
         
         # Early stopping
         self.patience = config.PATIENCE
@@ -56,7 +57,7 @@ class Trainer:
         self.epoch_times = []
         
         # GPU optimization
-        self.scaler = torch.cuda.amp.GradScaler(enabled=config.MIXED_PRECISION)
+        self.scaler = torch.amp.GradScaler('cuda', enabled=config.MIXED_PRECISION)
         self.accumulation_steps = config.GRADIENT_ACCUMULATION_STEPS
     
     def train_epoch(self):
@@ -74,7 +75,7 @@ class Trainer:
             labels = labels.long().to(self.device, non_blocking=True)
             
             # Use automatic mixed precision
-            with torch.cuda.amp.autocast(enabled=self.config.MIXED_PRECISION):
+            with torch.amp.autocast('cuda', enabled=self.config.MIXED_PRECISION):
                 outputs = self.model(images)
                 loss = self.criterion(outputs, labels)
                 loss = loss / self.accumulation_steps  # Normalize loss for accumulation
@@ -149,65 +150,71 @@ class Trainer:
         return epoch_loss, epoch_auc, predictions, true_labels
     
     def save_model(self, epoch, val_loss):
+        """Save model checkpoint"""
         try:
-            # Parse variant name correctly
-            parts = self.variant_name.split('_')
-            dataset = parts[0]  # ff++ or celebdf
+            # Get model directory from config
+            if isinstance(self.model, EnsembleDeepfakeDetector):
+                model_key = 'ensemble'
+            else:
+                # For single models, get the model key from the model's timm_name attribute
+                model_key = self.model.timm_name
             
-            # Use timm-specific model names for directory structure
-            model_name_map = {
-                'xception': 'legacy_xception',
-                'res2net101': 'res2net101_26w_4s',
-                'efficientnet': 'tf_efficientnet_b7_ns',
-                'ensemble': 'ensemble'
-            }
-            
-            # Get the model type and map to timm name if needed
-            model_type = parts[1]  # xception, res2net101, etc.
-            model_dir_name = model_name_map.get(model_type, model_type)
-            
-            # Determine augmentation type
-            is_no_aug = 'no_augmentation' in self.variant_name
-            aug_type = 'no_aug' if is_no_aug else 'with_aug'
-            
-            # Use config's WEIGHTS_DIR
-            save_dir = self.config.WEIGHTS_DIR / dataset / model_dir_name / aug_type
+            if not model_key:
+                self.logger.error("Could not determine model key")
+                return
+
+            # Get save directory
+            if hasattr(self.model, 'dataset') and hasattr(self.model, 'augment'):
+                dataset = self.model.dataset
+                variant = 'with_aug' if self.model.augment else 'no_aug'
+            else:
+                # Parse from variant_name
+                parts = self.variant_name.split('_')
+                dataset = parts[0]
+                variant = 'with_aug' if 'with_augmentation' in self.variant_name else 'no_aug'
+                
+            # Get directory name from config for this model key
+            dir_name = self.config.MODELS[model_key]['dir_name']
+            save_dir = self.config.get_model_weights_dir(model_key, dataset, variant)
             save_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Log the save location for verification
+
             self.logger.info(f"Current experiment: {self.variant_name}")
-            self.logger.info(f"Using timm model name: {model_dir_name}")
-            self.logger.info(f"Augmentation status: {'disabled' if is_no_aug else 'enabled'}")
+            self.logger.info(f"Using directory name: {dir_name}")
             self.logger.info(f"Saving to directory: {save_dir}")
             
-            # Create checkpoint
-            checkpoint = {
-                'epoch': epoch,
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'scheduler_state_dict': self.scheduler.state_dict(),
-                'val_loss': val_loss,
-                'val_auc': self.best_val_auc,
-                'metrics_history': self.metrics_history,
-                'augmentation_status': not is_no_aug,
-                'model_name': model_dir_name
-            }
-            
-            # Save model if it's the best so far (based on validation loss)
+            # Save model
             model_path = save_dir / f'loss_{val_loss:.4f}.pth'
+            is_no_aug = 'no_augmentation' in self.variant_name
+            
             if not list(save_dir.glob('*.pth')) or val_loss < self.best_val_loss:
                 # Remove previous model file if it exists
                 for old_file in save_dir.glob('*.pth'):
                     old_file.unlink()
                     self.logger.info(f"Removed previous model: {old_file.name}")
-                
+
                 # Save new best model
                 self.best_val_loss = val_loss
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'scheduler_state_dict': self.scheduler.state_dict(),
+                    'val_loss': val_loss,
+                    'val_auc': self.best_val_auc,
+                    'metrics_history': self.metrics_history,
+                    'augmentation_status': not is_no_aug,
+                    'model_name': dir_name
+                }
+                
                 torch.save(checkpoint, model_path)
                 self.logger.info(f"Saved new best model with validation loss: {val_loss:.4f}")
-            
+                self.logger.info(f"Model saved to: {model_path}")
+
         except Exception as e:
             self.logger.error(f"Error saving model: {str(e)}")
+            self.logger.error(f"Model key: {model_key if 'model_key' in locals() else 'unknown'}")
+            if 'save_dir' in locals():
+                self.logger.error(f"Attempted save directory: {save_dir}")
             raise
     
     def train(self):
