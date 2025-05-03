@@ -1,16 +1,6 @@
-# AWARE-NET: Adaptive Weighted Averaging for Robust Ensemble Network in Deepfake Detection
+# AWARE-NET
 
-## Overview
-
-AWARE-NET is a robust deepfake detection framework that combines three state-of-the-art CNN architectures—Xception, Res2Net101, and EfficientNet-B7—using an adaptive ensemble approach. It dynamically adjusts the contributions of each model to improve detection performance across multiple deepfake datasets, such as FF++ and CelebDF-v2.
-
-## Key Features
-
-* **Multi-Architecture Ensemble**: Combines Xception, Res2Net101, and EfficientNet-B7 to leverage the strengths of each architecture.
-* **Dynamic Weights**: Uses learnable weights to adaptively combine the models' predictions, improving robustness.
-* **Cross-Dataset Performance**: Evaluates on FF++ and CelebDF-v2, with/without data augmentation.
-* **Comprehensive Metrics**: Tracks AUC, F1, Precision, and Recall for detailed performance insights.
-* **Efficient Data Pipeline**: Supports configurable dataset fractions, automated splits, and advanced augmentation.
+PyTorch implementation of our paper "**AWARE-NET: Adaptive Weighted Averaging for Robust Ensemble Network in Deepfake Detection**". [ICEPECC2025](https://digital-library.theiet.org/doi/abs/10.1049/icp.2025.1162), [IEEE](https://ieeexplore.ieee.org/abstract/document/10969682), [arxiv](https://arxiv.org/abs/2505.00312)
 
 ## Architecture Overview
 
@@ -21,7 +11,6 @@ AWARE-NET is a robust deepfake detection framework that combines three state-of-
 <p align="center">
   <img src="https://github.com/user-attachments/assets/e5622fa7-993e-4605-adf0-012a6bff854c" alt="Image Description"/>
 </p>
-
 
 
 ## Configuration Options
