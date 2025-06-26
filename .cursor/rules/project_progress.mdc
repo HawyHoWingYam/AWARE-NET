@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+20250626 : Just completed first training with 10% dataset
+
+Next : Should use all dataset and more epochs
