@@ -220,6 +220,9 @@ def create_data_splits(config, dataset_name, force_new=None):
             fake_paths = list(fake_dir.glob("*.jpg")) + list(fake_dir.glob("*.png"))
             logger.info(f"Found {len(fake_paths)} fake images in {fake_type}")
             
+            # print(f"检查目录: {fake_dir}")
+            # print(f"文件列表: {list(fake_dir.glob('*.png'))[:5]}")  # 显示前5个文件
+            
             all_data.extend([{
                 'image_path': str(p),
                 'label': 1,
@@ -242,7 +245,7 @@ def create_data_splits(config, dataset_name, force_new=None):
         # Fake images
         fake_dir = config.DATA_DIR / config.DATASET_STRUCTURE['celebdf']['fake_dir']
         fake_paths = list(fake_dir.glob("*.jpg")) + list(fake_dir.glob("*.png"))
-        logger.info(f"Found {len(fake_paths)} fake CelebDF images")
+        logger.info(f"Found {len(fake_paths)} fake CelebDF images from {fake_dir}")
         
         all_data.extend([{
             'image_path': str(p),
@@ -289,5 +292,7 @@ def create_data_splits(config, dataset_name, force_new=None):
         with open(annotation_file, 'w') as f:
             json.dump(splits, f, indent=4)
         logger.info(f"Cached annotations to {annotation_file}")
+    
+    print(f"训练集类别分布: 真: {len(train_df[train_df['label'] == 0])}, 假: {len(train_df[train_df['label'] == 1])}")
     
     return train_df, val_df, test_df 

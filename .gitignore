@@ -1,2 +1,10 @@
-.venv/
-__pycache__
+__pycache__/
+*.py[cod]
+*.class
+.env
+.venv
+env/
+venv/
+results/
+logs/
+*.log

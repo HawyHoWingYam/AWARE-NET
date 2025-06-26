@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import timm
 import logging
-import os
+
 
 class BaseModel(nn.Module):
     def __init__(self, timm_name, config, pretrained=True):
