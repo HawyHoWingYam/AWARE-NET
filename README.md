@@ -113,3 +113,10 @@ python preprocessing.py
 
 ENV2:
 python AWARE-NET/src/main.py
+
+https://github.com/huggingface/pytorch-image-models/releases
+
+res2net101_26w_4s-02a759a1.pth : https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-res2net/res2net101_26w_4s-02a759a1.pth
+
+tf_efficientnet_b7_ns.pth : 
+https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/tf_efficientnet_b7_ns-1dbc32de.pth

@@ -1,6 +1,7 @@
 from pathlib import Path
 import logging
 import torch
+import os
 
 
 class Config:
@@ -11,6 +12,7 @@ class Config:
     WEIGHTS_DIR = RESULTS_DIR / "weights"
     ANNOTATIONS_DIR = ROOT_DIR / "annotations"
     LOG_DIR = ROOT_DIR / "logs"
+    PRETRAINED_MODELS_DIR = ROOT_DIR / "pretrained_models"
 
     # Dataset structure
     DATASET_STRUCTURE = {
@@ -36,8 +38,8 @@ class Config:
             }
         },
         'celebdf': {
-            'real_dir': 'celebdf/real',
-            'fake_dir': 'celebdf/fake'
+            'real_dir': 'celebdf/celeb-real',
+            'fake_dir': 'celebdf/celeb-synthesis'
         }
     }
 
@@ -164,7 +166,12 @@ class Config:
     # Training params
     BATCH_SIZE = 32
     MAX_EPOCHS = 2
-    PATIENCE = 5
+    #    PATIENCE = 5
+    # IMAGE_SIZE = 224
+    IMAGE_SIZE = 299
+    
+    #MAX_EPOCHS = 7
+    PATIENCE = 7
     MIN_EPOCHS = 5
     VALIDATION_FREQ = 1
 
@@ -192,13 +199,13 @@ class Config:
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
-    IMAGE_SIZE = 224
 
     # GPU optimization
     # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
     GRADIENT_ACCUMULATION_STEPS = 2
+    # NUM_WORKERS = 8  # Usually set to number of CPU cores
+    NUM_WORKERS = 16
     MIXED_PRECISION = True  # Use automatic mixed precision
-    NUM_WORKERS = 8  # Usually set to number of CPU cores
 
     # Augmentation configs
     AUGMENTATION_RATIO = 0.3  # 30% increase in dataset size
@@ -231,6 +238,11 @@ class Config:
             torch.backends.cuda.matmul.allow_tf32 = True  # Allow TF32 on Ampere GPUs
             torch.backends.cudnn.allow_tf32 = True
 
+            # 新增优化
+            torch.cuda.empty_cache()  # 清理GPU缓存
+            if hasattr(torch.cuda, 'amp') and torch.cuda.is_available():
+                torch.cuda.set_device(0)  # 确保使用主GPU
+
     @staticmethod
     def setup_logging():
         """Setup basic logging configuration"""
@@ -258,3 +270,6 @@ class Config:
         # Add handlers to root logger
         root_logger.addHandler(console_handler)
         root_logger.addHandler(file_handler)
+
+    # Add to config.py
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'

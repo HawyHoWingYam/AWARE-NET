@@ -11,13 +11,67 @@ class BaseModel(nn.Module):
         self.logger = logging.getLogger(__name__)
         
         try:
+            # Check for local pretrained weights
+            local_weights = None
+            
+            if timm_name == 'res2net101_26w_4s':
+                weights_path = config.PRETRAINED_MODELS_DIR / "res2net101_26w_4s-02a759a1.pth"
+                if weights_path.exists():
+                    local_weights = str(weights_path)
+                    self.logger.info(f"Using local res2net weights from: {local_weights}")
+            
+            elif timm_name == 'tf_efficientnet_b7_ns':
+                weights_path = config.PRETRAINED_MODELS_DIR / "tf_efficientnet_b7_ns.pth"
+                if weights_path.exists():
+                    local_weights = str(weights_path)
+                    self.logger.info(f"Using local efficientnet weights from: {local_weights}")
+                    # Remap model name to avoid deprecation warning
+                    timm_name = 'tf_efficientnet_b7.ns_jft_in1k'
+            
             # Create model with 2 output classes (real/fake)
             self.model = timm.create_model(
                 timm_name,
-                pretrained=pretrained,
-                num_classes=2,  # Binary classification
-                drop_rate=config.DROPOUT_RATE   # Add dropout for regularization
+                pretrained=(pretrained and local_weights is None),
+                num_classes=2,
+                drop_rate=config.DROPOUT_RATE
             )
+            
+            # Load local weights if available
+            if local_weights:
+                try:
+                    # First try loading with weights_only for safety
+                    state_dict = torch.load(local_weights, weights_only=True)
+                except Exception as e:
+                    # If that fails and it's the EfficientNet model from a trusted source, try without weights_only
+                    if 'efficientnet' in timm_name:  # Always use fallback for efficientnet models
+                        self.logger.warning(f"Falling back to standard loading for trusted EfficientNet model")
+                        state_dict = torch.load(local_weights)  # Load without weights_only for compatibility
+                    else:
+                        # For other models, propagate the error
+                        raise e
+                
+                # For EfficientNet model from Hugging Face format
+                if "tf_efficientnet" in timm_name:
+                    # HF models typically store weights in a different format
+                    # We may need to transform the state dict
+                    new_state_dict = {}
+                    for k, v in state_dict.items():
+                        # Remove any 'model.' prefix if present
+                        if k.startswith('model.'):
+                            new_key = k[6:]  # Remove 'model.' prefix
+                        else:
+                            new_key = k
+                        new_state_dict[new_key] = v
+                    state_dict = new_state_dict
+                    
+                # Remove classifier weights if they exist (since we have different num_classes)
+                for k in list(state_dict.keys()):
+                    if k.startswith('fc.') or k.startswith('classifier.'):
+                        del state_dict[k]
+                    
+                # Load with strict=False to ignore missing or extra keys
+                self.model.load_state_dict(state_dict, strict=False)
+                self.logger.info(f"Successfully loaded local weights for {timm_name}")
             
             # Log model size
             num_params = sum(p.numel() for p in self.model.parameters())
