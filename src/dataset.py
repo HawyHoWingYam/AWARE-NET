@@ -220,9 +220,6 @@ def create_data_splits(config, dataset_name, force_new=None):
             fake_paths = list(fake_dir.glob("*.jpg")) + list(fake_dir.glob("*.png"))
             logger.info(f"Found {len(fake_paths)} fake images in {fake_type}")
             
-            # print(f"检查目录: {fake_dir}")
-            # print(f"文件列表: {list(fake_dir.glob('*.png'))[:5]}")  # 显示前5个文件
-            
             all_data.extend([{
                 'image_path': str(p),
                 'label': 1,
@@ -230,28 +227,37 @@ def create_data_splits(config, dataset_name, force_new=None):
                 'dataset': 'ff++'
             } for p in fake_paths[:int(len(fake_paths) * config.DATASET_FRACTION)]])
             
-    else:  # celebdf
-        # Real images
-        real_dir = config.DATA_DIR / config.DATASET_STRUCTURE['celebdf']['real_dir']
-        real_paths = list(real_dir.glob("*.jpg")) + list(real_dir.glob("*.png"))
-        logger.info(f"Found {len(real_paths)} real CelebDF images")
+    elif dataset_name == 'celebdf':  # celebdf
+        # Process real images from multiple directories
+        all_real_paths = []
+        for real_source, real_path in config.DATASET_STRUCTURE['celebdf']['real_dirs'].items():
+            real_dir = config.DATA_DIR / real_path
+            logger.debug(f"Looking for CelebDF real images in: {real_dir}")
+            # Only look for PNG files since JPG files don't exist
+            real_paths = list(real_dir.glob("*.png"))
+            logger.info(f"Found {len(real_paths)} real CelebDF images in {real_source}")
+            
+            all_data.extend([{
+                'image_path': str(p),
+                'label': 0,
+                'subset': f'real_{real_source}',
+                'dataset': 'celebdf'
+            } for p in real_paths[:int(len(real_paths) * config.DATASET_FRACTION)]])
         
-        all_data.extend([{
-            'image_path': str(p),
-            'label': 0,
-            'dataset': 'celebdf'
-        } for p in real_paths[:int(len(real_paths) * config.DATASET_FRACTION)]])
-        
-        # Fake images
-        fake_dir = config.DATA_DIR / config.DATASET_STRUCTURE['celebdf']['fake_dir']
-        fake_paths = list(fake_dir.glob("*.jpg")) + list(fake_dir.glob("*.png"))
-        logger.info(f"Found {len(fake_paths)} fake CelebDF images from {fake_dir}")
-        
-        all_data.extend([{
-            'image_path': str(p),
-            'label': 1,
-            'dataset': 'celebdf'
-        } for p in fake_paths[:int(len(fake_paths) * config.DATASET_FRACTION)]])
+        # Process fake images from multiple directories
+        for fake_type, fake_path in config.DATASET_STRUCTURE['celebdf']['fake_dirs'].items():
+            fake_dir = config.DATA_DIR / fake_path
+            logger.debug(f"Looking for {fake_type} fake images in: {fake_dir}")
+            # Only look for PNG files
+            fake_paths = list(fake_dir.glob("*.png"))
+            logger.info(f"Found {len(fake_paths)} fake CelebDF images in {fake_type}")
+            
+            all_data.extend([{
+                'image_path': str(p),
+                'label': 1,
+                'subset': fake_type,
+                'dataset': 'celebdf'
+            } for p in fake_paths[:int(len(fake_paths) * config.DATASET_FRACTION)]])
     
     if not all_data:
         raise ValueError(f"No images found for {dataset_name}")
@@ -292,7 +298,5 @@ def create_data_splits(config, dataset_name, force_new=None):
         with open(annotation_file, 'w') as f:
             json.dump(splits, f, indent=4)
         logger.info(f"Cached annotations to {annotation_file}")
-    
-    print(f"训练集类别分布: 真: {len(train_df[train_df['label'] == 0])}, 假: {len(train_df[train_df['label'] == 1])}")
     
     return train_df, val_df, test_df 

@@ -7,9 +7,8 @@ import cv2
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
-from retinaface import RetinaFace
+from retinaface.pre_trained_models import get_model
 import logging
-import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,18 +39,18 @@ class DatasetPreprocessor:
             'Deepfakes', 'Face2Face', 'FaceSwap',
             'NeuralTextures', 'FaceShifter', 'DeepFakeDetection'
         ]
-        self.compression = 'c40'
+        self.compression = 'c23'
         
         # Initialize face detector
         if torch.cuda.is_available():
             logging.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
             torch.cuda.set_device(0)
-            os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Use first GPU
         else:
             logging.info("Using CPU")
             
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.face_detector = RetinaFace
+        self.face_detector = get_model("resnet50_2020-07-20", max_size=2048, device=self.device)
+        self.face_detector.eval()
 
     def calculate_sampling_interval(self, total_frames, fps, is_real=False):
         """Calculate smart sampling interval based on video properties"""
@@ -107,58 +106,49 @@ class DatasetPreprocessor:
             faces_detected = 0
             
             # Process frames
-            while video.isOpened() and saved_count < max_faces:
-                ret, frame = video.read()
-                if not ret:
-                    break
-                    
-                if frame_count % interval == 0:
-                    # Convert frame to RGB
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    
-                    # Detect faces
-                    faces = self.face_detector.detect_faces(frame_rgb)
-                    # Convert face dictionary to list format that the code expects
-                    face_list = []
-                    for face_key in faces:  # face_key will be 'face_1', 'face_2', etc.
-                        face_dict = faces[face_key]
-                        # Create a new dict with the expected structure
-                        face_info = {
-                            'score': face_dict['score'],
-                            'bbox': face_dict['facial_area']  # Map facial_area to bbox
-                        }
-                        face_list.append(face_info)
-
-                    faces_detected += len(face_list)
-                    
-                    if face_list:  # Now use face_list instead of faces
-                        # Get best face
-                        best_face = max(face_list, key=lambda x: 
-                            (x['score'], (x['bbox'][2] - x['bbox'][0]) * (x['bbox'][3] - x['bbox'][1]))
-                        )
+            with tqdm(total=total_frames, desc=f"Processing {video_path.name}") as pbar:
+                while video.isOpened() and saved_count < max_faces:
+                    ret, frame = video.read()
+                    if not ret:
+                        break
                         
-                        # Extract face with padding
-                        x0, y0, x1, y1 = best_face['bbox']
-                        w, h = x1 - x0, y1 - y0
+                    if frame_count % interval == 0:
+                        # Convert frame to RGB
+                        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                         
-                        x0 = max(0, x0 - int(w * self.padding))
-                        x1 = min(frame.shape[1], x1 + int(w * self.padding))
-                        y0 = max(0, y0 - int(h * self.padding))
-                        y1 = min(frame.shape[0], y1 + int(h * self.padding))
+                        # Detect faces
+                        faces = self.face_detector.predict_jsons(frame_rgb)
+                        faces_detected += len(faces)
                         
-                        face_img = frame[int(y0):int(y1), int(x0):int(x1)]
-                        
-                        # Save face if large enough
-                        if min(face_img.shape[:2]) >= 64:
-                            face_resized = cv2.resize(face_img, (self.image_size, self.image_size))
-                            face_name = f"{video_path.stem}_{saved_count:04d}_face.png"
-                            cv2.imwrite(str(faces_dir / face_name), face_resized)
-                            saved_count += 1
+                        if faces:
+                            # Get best face
+                            best_face = max(faces, key=lambda x: 
+                                (x['score'], (x['bbox'][2] - x['bbox'][0]) * (x['bbox'][3] - x['bbox'][1]))
+                            )
                             
-                            # if saved_count % 5 == 0:
-                            #     logging.info(f"Saved {saved_count}/{max_faces} faces")
-                
-                frame_count += 1
+                            # Extract face with padding
+                            x0, y0, x1, y1 = best_face['bbox']
+                            w, h = x1 - x0, y1 - y0
+                            
+                            x0 = max(0, x0 - int(w * self.padding))
+                            x1 = min(frame.shape[1], x1 + int(w * self.padding))
+                            y0 = max(0, y0 - int(h * self.padding))
+                            y1 = min(frame.shape[0], y1 + int(h * self.padding))
+                            
+                            face_img = frame[int(y0):int(y1), int(x0):int(x1)]
+                            
+                            # Save face if large enough
+                            if min(face_img.shape[:2]) >= 64:
+                                face_resized = cv2.resize(face_img, (self.image_size, self.image_size))
+                                face_name = f"{video_path.stem}_{saved_count:04d}_face.png"
+                                cv2.imwrite(str(faces_dir / face_name), face_resized)
+                                saved_count += 1
+                                
+                                if saved_count % 5 == 0:
+                                    logging.info(f"Saved {saved_count}/{max_faces} faces")
+                    
+                    frame_count += 1
+                    pbar.update(1)
             
             video.release()
             logging.info(f"Completed {video_path.name}: Found {faces_detected} faces, "
@@ -176,16 +166,15 @@ class DatasetPreprocessor:
             for real_subset in ['youtube', 'actors']:
                 videos_dir = self.videos_dir / 'FF++' / 'original_sequences' / real_subset / self.compression / 'videos'
                 faces_dir = self.faces_dir / 'ff++' / 'real' / real_subset
-                logging.info(f"Processing {videos_dir} and {faces_dir}")
-
+                
                 videos = list(videos_dir.glob('*.mp4'))
                 logging.info(f"\nProcessing {len(videos)} real videos from {real_subset}")
                 
                 total_saved = 0
-                for video in tqdm(videos, desc=f"Processing {real_subset} videos"):
+                for video in videos:
                     total_saved += self.process_video(video, faces_dir, is_real=True)
                 
-                logging.info(f"Completed real_subset {real_subset}: Total faces saved: {total_saved}")
+                logging.info(f"Completed {real_subset}: Total faces saved: {total_saved}")
             
             # Process fake videos
             for subset in self.ffpp_manipulated_subsets:
@@ -196,10 +185,10 @@ class DatasetPreprocessor:
                 logging.info(f"\nProcessing {len(videos)} fake videos from {subset}")
                 
                 total_saved = 0
-                for video in tqdm(videos, desc=f"Processing {subset} videos"):
+                for video in videos:
                     total_saved += self.process_video(video, faces_dir, is_real=False)
                 
-                logging.info(f"Completed fake_subset {subset}: Total faces saved: {total_saved}")
+                logging.info(f"Completed {subset}: Total faces saved: {total_saved}")
             
         elif dataset_type.lower() == 'celebdf':
             # Define CelebDF subsets and their properties
@@ -228,13 +217,13 @@ class DatasetPreprocessor:
                 logging.info(f"\nProcessing {len(videos)} videos from CelebDF {subset_name}")
                 
                 total_saved = 0
-                for video in tqdm(videos, desc=f"Processing CelebDF {subset_name}"):
+                for video in videos:
                     total_saved += self.process_video(video, faces_dir, is_real=is_real)
                 
                 logging.info(f"Completed CelebDF {subset_name}: Total faces saved: {total_saved}")
 
 if __name__ == "__main__":
-    preprocessor = DatasetPreprocessor("/root/autodl-tmp")
+    preprocessor = DatasetPreprocessor("/workspace/AWARE-NET")
     
     # Process both datasets
     preprocessor.process_dataset('ffpp')

@@ -103,12 +103,6 @@ class Trainer:
             })
         
         epoch_loss = total_loss / len(self.train_loader)
-        
-        # 添加安全检查
-        if len(set(true_labels)) < 2:
-            self.logger.warning("批次中只有一个类别，无法计算AUC。使用准确率代替。")
-            return epoch_loss, 0.5  # 返回默认AUC值
-        
         epoch_auc = roc_auc_score(true_labels, predictions)
         
         # Log model weights if it's an ensemble
