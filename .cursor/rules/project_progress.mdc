@@ -3,6 +3,72 @@ description:
 globs: 
 alwaysApply: false
 ---
-20250626 : Just completed first training with 10% dataset
+我看到了交叉数据集评估中准确率大幅下降的问题。这是深度伪造检测中的一个常见挑战，让我分析一下原因和可能的解决方案。
 
-Next : Should use all dataset and more epochs
+从日志中可以看到，当模型在原始数据集上训练并测试时表现很好（AUC 99%+），但在跨数据集评估时性能大幅下降：
+
+1. FF++ → CelebDF：
+   - AUC: 约72-78%
+   - 准确率: 约77%
+
+2. CelebDF → FF++：
+   - AUC: 约62-65%
+   - 准确率: 仅约34-39%
+
+这种性能下降的主要原因是：
+
+1. **域偏移问题**：两个数据集之间存在明显的分布差异。FF++和CelebDF在视频质量、压缩方式、伪造技术和拍摄条件等方面都有差异。
+
+2. **过拟合到源数据集**：模型可能过度适应了训练数据集的特定特征，而这些特征在目标数据集中可能不存在或不明显。
+
+3. **数据集规模和多样性**：从日志中看到，您只使用了10%的数据（`DATASET_FRACTION = 0.1`），这可能限制了模型的泛化能力。
+
+可以通过以下配置修改来提高跨数据集性能：
+
+```python
+# 增加数据集比例
+DATASET_FRACTION = 0.5  # 或更高，如果计算资源允许
+
+# 增强数据增强
+AUGMENTATION_RATIO = 0.5  # 增加数据增强比例
+AUGMENTATION_PARAMS = {
+    # 增加几何变换的强度和概率
+    'rotation': {'probability': 0.7, 'max_left': 25, 'max_right': 25},
+    'shear': {'probability': 0.5, 'max_shear_left': 15, 'max_shear_right': 15},
+    'flip': {'probability': 0.7},
+    'skew': {'probability': 0.5, 'magnitude': 0.4},
+    
+    # 增加颜色变换的强度
+    'color_jitter': {
+        'probability': 0.5,
+        'brightness': 0.3,
+        'contrast': 0.3,
+        'saturation': 0.3,
+        'hue': 0.15
+    },
+    
+    # 添加噪声和模糊等额外增强
+    'noise': {'probability': 0.3, 'std': 0.02},
+    'blur': {'probability': 0.3, 'kernel_size': 3}
+}
+
+# 降低学习率，增加训练稳定性
+LR_INITIAL = 1e-4
+WEIGHT_DECAY = 5e-4
+
+# 增加训练轮数
+MAX_EPOCHS = 10
+PATIENCE = 8
+```
+
+其他建议：
+
+1. **域适应技术**：考虑实现域适应方法，如域对抗训练或特征对齐技术。
+
+2. **混合数据集训练**：尝试在两个数据集的混合上训练模型，可以提高跨数据集泛化能力。
+
+3. **特征提取策略**：修改模型以关注更通用的伪造特征，而不是数据集特定的特征。
+
+4. **集成策略优化**：调整AWARE-NET的加权机制，使其更倾向于在跨数据集场景中表现更好的模型。
+
+跨数据集泛化是深度伪造检测中的一个开放挑战，这些下降是正常的，但通过上述调整，您应该能够提高模型的跨数据集性能。
