@@ -4,7 +4,7 @@ import torch
 
 class Config:
     # Paths
-    ROOT_DIR = Path("/workspace/AWARE-NET")
+    ROOT_DIR = Path("E:/DeepScan/deepfake_cluster/test-dlib-face")
     DATA_DIR = ROOT_DIR / "faces"
     RESULTS_DIR = ROOT_DIR / "results"
     WEIGHTS_DIR = RESULTS_DIR / "weights"
@@ -19,22 +19,17 @@ class Config:
                 'youtube': 'ff++/real/youtube'
             },
             'fake_dirs': {
-                'Deepfakes': 'ff++/manipulated/Deepfakes',
-                'Face2Face': 'ff++/manipulated/Face2Face',
-                'FaceSwap': 'ff++/manipulated/FaceSwap',
-                'NeuralTextures': 'ff++/manipulated/NeuralTextures',
-                'FaceShifter': 'ff++/manipulated/FaceShifter',
-                'DeepFakeDetection': 'ff++/manipulated/DeepFakeDetection'
+                'Deepfakes': 'ff++/fake/Deepfakes',
+                'Face2Face': 'ff++/fake/Face2Face',
+                'FaceSwap': 'ff++/fake/FaceSwap',
+                'NeuralTextures': 'ff++/fake/NeuralTextures',
+                'FaceShifter': 'ff++/fake/FaceShifter',
+                'DeepFakeDetection': 'ff++/fake/DeepFakeDetection'
             }
         },
         'celebdf': {
-            'real_dirs': {
-                'celeb-real': 'celebdf/celeb-real',
-                'youtube-real': 'celebdf/youtube-real'
-            },
-            'fake_dirs': {
-                'celeb-synthesis': 'celebdf/celeb-synthesis'
-            }
+            'real_dir': 'celebdf/real',
+            'fake_dir': 'celebdf/fake'
         }
     }
     

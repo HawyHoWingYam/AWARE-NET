@@ -24,9 +24,24 @@ class Trainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.AdamW(model.parameters(), 
+        
+        # *** MODIFICATION FOR ENSEMBLE TRAINING ***
+        # If the model is an ensemble, only train parameters with requires_grad=True
+        if isinstance(model, EnsembleDeepfakeDetector):
+            self.logger.info("Configuring optimizer for Ensemble: Training only learnable weights.")
+            params_to_train = filter(lambda p: p.requires_grad, model.parameters())
+        else:
+            self.logger.info("Configuring optimizer for Single Model: Training all parameters.")
+            params_to_train = model.parameters()
+        
+        self.optimizer = optim.AdamW(params_to_train, 
                                    lr=config.LEARNING_RATE, 
                                    weight_decay=config.WEIGHT_DECAY)
+          
+        # self.optimizer = optim.AdamW(model.parameters(), 
+        #                            lr=config.LEARNING_RATE, 
+        #                            weight_decay=config.WEIGHT_DECAY)
+        
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             self.optimizer,
             T_0=config.WARMUP_EPOCHS,

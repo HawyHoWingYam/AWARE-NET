@@ -151,12 +151,12 @@ class Config:
         if cls.ANNOTATION_CACHE:
             cls.ANNOTATIONS_DIR.mkdir(exist_ok=True)
             logger.info("Created annotations directory for caching")
-            
+    
     # Training params
     BATCH_SIZE = 64
-    MAX_EPOCHS = 15
-    PATIENCE = 5
-    MIN_EPOCHS = 10
+    MAX_EPOCHS = 10
+    PATIENCE = 8
+    MIN_EPOCHS = 5
     VALIDATION_FREQ = 1
     
     # Early stopping controls
@@ -168,7 +168,7 @@ class Config:
     VAL_CHECK_INTERVAL = 100
     
     # Learning rate scheduling
-    LR_INITIAL = 3e-4
+    LR_INITIAL = 1e-4
     LR_MIN = 1e-6
     WARMUP_EPOCHS = 2
     LR_SCHEDULE_TYPE = 'cosine'
@@ -176,37 +176,41 @@ class Config:
     # Model configs
     DROPOUT_RATE = 0.3
     LEARNING_RATE = 3e-4
-    WEIGHT_DECAY = 1e-4
+    WEIGHT_DECAY = 5e-4
     
     # Dataset configs
-    DATASET_FRACTION = 0.1
+    DATASET_FRACTION = 0.5
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
     IMAGE_SIZE = 224 
     
     # GPU optimization
-    GRADIENT_ACCUMULATION_STEPS = 1  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
+    GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
     MIXED_PRECISION = True  # Use automatic mixed precision
     NUM_WORKERS = 8  # Usually set to number of CPU cores
     
     # Augmentation configs
-    AUGMENTATION_RATIO = 0.3  # 30% increase in dataset size
+    AUGMENTATION_RATIO = 0.5  # 30% increase in dataset size
     AUGMENTATION_PARAMS = {
         # Geometric transformations
-        'rotation': {'probability': 0.5, 'max_left': 15, 'max_right': 15},
-        'shear': {'probability': 0.3, 'max_shear_left': 10, 'max_shear_right': 10},
-        'flip': {'probability': 0.5},
-        'skew': {'probability': 0.3, 'magnitude': 0.3},
+        'rotation': {'probability': 0.7, 'max_left': 25, 'max_right': 25},
+        'shear': {'probability': 0.5, 'max_shear_left': 15, 'max_shear_right': 15},
+        'flip': {'probability': 0.7},
+        'skew': {'probability': 0.5, 'magnitude': 0.4},
         
         # Color transformations
         'color_jitter': {
-            'probability': 0.3,
-            'brightness': 0.2,  # range: [1-x, 1+x]
-            'contrast': 0.2,
-            'saturation': 0.2,
-            'hue': 0.1  # range: [-x, x]
-        }
+            'probability': 0.5,
+            'brightness': 0.3,
+            'contrast': 0.3,
+            'saturation': 0.3,
+            'hue': 0.15
+        },
+        
+        # Additional augmentations
+        'noise': {'probability': 0.3, 'std': 0.02},
+        'blur': {'probability': 0.3, 'kernel_size': 3}
     }
     
     # Annotation configs
