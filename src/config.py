@@ -179,14 +179,14 @@ class Config:
     WEIGHT_DECAY = 1e-4
     
     # Dataset configs
-    DATASET_FRACTION = 0.1
+    DATASET_FRACTION = 100
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
     IMAGE_SIZE = 224 
     
     # GPU optimization
-    GRADIENT_ACCUMULATION_STEPS = 1  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
+    GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
     MIXED_PRECISION = True  # Use automatic mixed precision
     NUM_WORKERS = 8  # Usually set to number of CPU cores
     
