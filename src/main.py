@@ -1,292 +1,117 @@
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from pathlib import Path
 import logging
-import json
+import argparse
 
-from config import Config
+from config import get_config
 from dataset import DeepfakeDataset, create_data_splits
 from model import EnsembleDeepfakeDetector, SingleModelDetector
 from train import Trainer
 from experiments import ExperimentRunner
-from cross_evaluation import run_cross_evaluations
+# from cross_evaluation import run_cross_evaluations # (Optional) Uncomment if you want to run cross-evaluation
 
-def train_all_models(config, transform):
-    logger = logging.getLogger(__name__)
-    
-    # Define consistent model configurations
-    models_config = {
-        'xception': {
-            'timm_name': 'legacy_xception',    # name used for timm model creation
-            'dir_name': 'xception',            # name used for directories
-            'variant_key': 'xception',         # name used in variant_name
-            'type': 'single'
-        },
-        'res2net101_26w_4s': {
-            'timm_name': 'res2net101_26w_4s',
-            'dir_name': 'res2net101',
-            'variant_key': 'res2net101_26w_4s',
-            'type': 'single'
-        },
-        'tf_efficientnet_b7_ns': {
-            'timm_name': 'tf_efficientnet_b7_ns',
-            'dir_name': 'tf_efficientnet',
-            'variant_key': 'tf_efficientnet_b7_ns',
-            'type': 'single'
-        },
-        'ensemble': {
-            'timm_name': 'ensemble',
-            'dir_name': 'ensemble',
-            'variant_key': 'ensemble',
-            'type': 'ensemble'
-        }
-    }
-    
-    # Training variants with consistent naming
-    variants = [
-        {'name': 'no_augmentation', 'augment': False},
-        {'name': 'with_augmentation', 'augment': True}
-    ]
-    
-    # Datasets
-    datasets = ['celebdf','ff++']
-    
-    logger.info("Using models:")
-    for model_key, model_config in models_config.items():
-        logger.info(f"- {model_key}: {model_config['timm_name']}")
-    
-    # First run without augmentation
-    logger.info("\n" + "="*50 + "\nStarting training without augmentation\n" + "="*50)
-    for dataset_name in datasets:
-        logger.info(f"\nProcessing dataset: {dataset_name}")
-        
-        # Create data splits for this dataset
-        train_df, val_df, test_df = create_data_splits(config, dataset_name, force_new=True)
-        
-        # Train each model
-        for model_key, model_config in models_config.items():
-            # Use consistent variant naming
-            variant_name = f"{dataset_name}_{model_config['variant_key']}_no_augmentation"
-            
-            logger.info(f"\nTraining {variant_name}")
-            logger.info(f"Model: {model_config['dir_name']}")
-            logger.info(f"Dataset: {dataset_name}")
-            logger.info(f"Augmentation: disabled")
-            
-            # Create datasets without augmentation
-            train_dataset = DeepfakeDataset(
-                dataframe=train_df,
-                transform=transform,
-                augment=False
-            )
-            
-            val_dataset = DeepfakeDataset(
-                dataframe=val_df,
-                transform=transform
-            )
-            
-            test_dataset = DeepfakeDataset(
-                dataframe=test_df,
-                transform=transform
-            )
-            
-            # Create dataloaders
-            train_loader = DataLoader(
-                train_dataset, 
-                batch_size=config.BATCH_SIZE,
-                shuffle=True,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
-            val_loader = DataLoader(
-                val_dataset,
-                batch_size=config.BATCH_SIZE,
-                shuffle=False,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=config.BATCH_SIZE,
-                shuffle=False,
-                num_workers=4
-            )
-            
-            # Initialize model with correct name
-            if model_config['type'] == 'single':
-                model = SingleModelDetector(model_key, config).cuda()  # Pass model_key instead of timm_name
-            else:
-                model = EnsembleDeepfakeDetector(
-                    config=config,
-                    dataset=dataset_name,
-                    augment=False,
-                    variant_name=variant_name
-                ).cuda()
-            
-            # Train and evaluate
-            trainer = Trainer(
-                model=model,
-                config=config,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                test_loader=test_loader,
-                variant_name=variant_name
-            )
-            
-            experimenter = ExperimentRunner(config, model, trainer)
-            results = experimenter.run_experiments(test_loader)
-            
-            logger.info(f"Results for {variant_name}:")
-            # logger.info(json.dumps(results, indent=2))
-    
-    # Then run with augmentation for all models and datasets
-    logger.info("\n" + "="*50 + "\nStarting training with augmentation\n" + "="*50)
-    for dataset_name in datasets:
-        logger.info(f"\nProcessing dataset: {dataset_name}")
-        
-        # Create data splits for this dataset
-        train_df, val_df, test_df = create_data_splits(config, dataset_name, force_new=True)
-        
-        # Train each model
-        for model_key, model_config in models_config.items():
-            # Use consistent variant naming
-            variant_name = f"{dataset_name}_{model_config['variant_key']}_with_augmentation"
-            
-            logger.info(f"\nTraining {variant_name}")
-            logger.info(f"Model: {model_config['dir_name']}")
-            logger.info(f"Dataset: {dataset_name}")
-            logger.info(f"Augmentation: enabled")
-            
-            # Create datasets with augmentation
-            train_dataset = DeepfakeDataset(
-                dataframe=train_df,
-                transform=transform,
-                augment=True,
-                variant_name=variant_name,
-                config=config  # Pass config here
-            )
-            
-            val_dataset = DeepfakeDataset(
-                dataframe=val_df,
-                transform=transform
-            )
-            
-            test_dataset = DeepfakeDataset(
-                dataframe=test_df,
-                transform=transform
-            )
-            
-            # Create dataloaders
-            train_loader = DataLoader(
-                train_dataset, 
-                batch_size=config.BATCH_SIZE,
-                shuffle=True,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
-            val_loader = DataLoader(
-                val_dataset,
-                batch_size=config.BATCH_SIZE,
-                shuffle=False,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
-            test_loader = DataLoader(
-                test_dataset,
-                batch_size=config.BATCH_SIZE,
-                shuffle=False,
-                num_workers=4
-            )
-            
-            # Initialize model with correct name
-            if model_config['type'] == 'single':
-                model = SingleModelDetector(model_key, config).cuda()  # Pass model_key instead of timm_name
-            else:
-                model = EnsembleDeepfakeDetector(
-                    config=config,
-                    dataset=dataset_name,
-                    augment='with_augmentation' in variant_name,
-                    variant_name=variant_name
-                ).cuda()
-            
-            # Train and evaluate
-            trainer = Trainer(
-                model=model,
-                config=config,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                test_loader=test_loader,
-                variant_name=variant_name
-            )
-            
-            experimenter = ExperimentRunner(config, model, trainer)
-            results = experimenter.run_experiments(test_loader)
-            
-            logger.info(f"Results for {variant_name}:")
-            # logger.info(json.dumps(results, indent=2))
-    
-    # Run cross-dataset evaluation after training
-    run_cross_evaluations(config, transform, models_config)
-
-def test_celebdf_loading(config):
-    logger = logging.getLogger(__name__)
-    logger.info("Testing CelebDF loading...")
-    
-    train_df, val_df, test_df = create_data_splits(config, 'celebdf', force_new=True)
-    
-    logger.info(f"CelebDF dataset sizes:")
-    logger.info(f"Train: {len(train_df)} samples")
-    logger.info(f"Val: {len(val_df)} samples")
-    logger.info(f"Test: {len(test_df)} samples")
-    
-    # Check class distribution
-    logger.info("\nClass distribution:")
-    logger.info("Train set:")
-    logger.info(f"Real: {len(train_df[train_df['label'] == 0])}")
-    logger.info(f"Fake: {len(train_df[train_df['label'] == 1])}")
+def get_model(model_name, config, dataset_name, augment):
+    """Initializes the correct model based on name."""
+    if model_name == 'ensemble':
+        return EnsembleDeepfakeDetector(
+            config=config,
+            dataset=dataset_name,
+            augment=augment,
+        ).cuda()
+    else:
+        return SingleModelDetector(model_name, config).cuda()
 
 def main():
-    # Initialize logging first
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    parser = argparse.ArgumentParser(description="Deepfake Detection Training Framework")
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default="celebdf,ff++",
+        help="Comma-separated list of datasets to train on (e.g., 'celebdf,ff++').",
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        default="xception,res2net101_26w_4s,tf_efficientnet_b7_ns,ensemble",
+        help="Comma-separated list of models to train.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="default",
+        help="Name of the configuration profile to use (default, ff++, celebdf, ensemble, debug).",
+    )
+    parser.add_argument(
+        "--skip-aug", action="store_true", help="Skip training with augmentation."
+    )
+    parser.add_argument(
+        "--skip-no-aug", action="store_true", help="Skip training without augmentation."
+    )
+
+    args = parser.parse_args()
+
+    # Get the selected configuration object
+    config = get_config(args.config)
+    config.create_directories()
     
-    try:
-        # Initialize config as a Config object, not dict
-        config = Config()
-        config.create_directories()
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting experiment with configuration: {args.config}")
+    logger.info(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+
+    transform = transforms.Compose([
+        transforms.Resize((config.IMAGE_SIZE, config.IMAGE_SIZE)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    datasets_to_run = args.datasets.split(',')
+    models_to_run = args.models.split(',')
+
+    training_variants = []
+    if not args.skip_no_aug:
+        training_variants.append({'name': 'no_augmentation', 'augment': False})
+    if not args.skip_aug:
+        training_variants.append({'name': 'with_augmentation', 'augment': True})
+
+    for dataset_name in datasets_to_run:
+        logger.info(f"\n{'='*20} PROCESSING DATASET: {dataset_name.upper()} {'='*20}")
         
-        logger.info("Starting experiment with following configuration:")
-        logger.info(f"Batch Size: {config.BATCH_SIZE}")
-        logger.info(f"Dataset Fraction: {config.DATASET_FRACTION}")
-        logger.info(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
+        train_df, val_df, test_df = create_data_splits(config, dataset_name)
         
-        # Create data transforms
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                               std=[0.229, 0.224, 0.225])
-        ])
-        
-        # Run all experiments
-        train_all_models(config, transform)
-            
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        raise
+        for model_key in models_to_run:
+            if model_key not in config.MODELS:
+                logger.warning(f"Model key '{model_key}' not found in config. Skipping.")
+                continue
+
+            for variant in training_variants:
+                variant_name = f"{dataset_name}_{config.MODELS[model_key]['variant_key']}_{variant['name']}"
+                
+                logger.info(f"\n--- Training: {variant_name} ---")
+
+                # Create datasets
+                train_dataset = DeepfakeDataset(train_df, transform, augment=variant['augment'], variant_name=variant_name, config=config)
+                val_dataset = DeepfakeDataset(val_df, transform)
+                test_dataset = DeepfakeDataset(test_df, transform)
+
+                # Create dataloaders
+                train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS, pin_memory=True)
+                val_loader = DataLoader(val_dataset, batch_size=config.BATCH_SIZE, shuffle=False, num_workers=config.NUM_WORKERS, pin_memory=True)
+                test_loader = DataLoader(test_dataset, batch_size=config.BATCH_SIZE, shuffle=False, num_workers=config.NUM_WORKERS)
+                
+                # Initialize model
+                model = get_model(model_key, config, dataset_name, variant['augment'])
+
+                # Initialize Trainer and ExperimentRunner
+                trainer = Trainer(model, train_loader, val_loader, config, variant_name, test_loader)
+                experimenter = ExperimentRunner(config, model, trainer)
+                
+                # Run experiment
+                experimenter.run_experiments(test_loader)
+
+    # (Optional) Uncomment the following lines to run cross-dataset evaluation after all training is complete
+    # logger.info("\n" + "="*50 + "\nPerforming Cross-Dataset Evaluation\n" + "="*50)
+    # run_cross_evaluations(config, transform, config.MODELS)
 
 if __name__ == "__main__":
-    main() 
+    main()
