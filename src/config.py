@@ -105,6 +105,9 @@ class BaseConfig:
             "saturation": 0.2,
             "hue": 0.1,
         },
+            # 添加噪声和模糊等额外增强
+    'noise': {'probability': 0.3, 'std': 0.02},
+    'blur': {'probability': 0.3, 'kernel_size': 3}
     }
 
     # Annotation configs
