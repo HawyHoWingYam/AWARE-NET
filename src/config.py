@@ -149,93 +149,9 @@ class BaseConfig:
             for model_config in cls.MODELS.values():
                 for target_dataset in ["ff++", "celebdf"]:
                     if source_dataset != target_dataset:
-<<<<<<< HEAD
-                        (cls.RESULTS_DIR / 'cross_evaluation' / source_dataset / dir_name / target_dataset).mkdir(parents=True, exist_ok=True)
-        
-        # Log created directory structure
-        logger.info("Created directory structure with models:")
-        for model_config in cls.MODELS.values():
-            logger.info(f"- {model_config['dir_name']}")
-        
-        # Create annotations directory only if needed
-        if cls.ANNOTATION_CACHE:
-            cls.ANNOTATIONS_DIR.mkdir(exist_ok=True)
-            logger.info("Created annotations directory for caching")
-            
-    # Training params
-    BATCH_SIZE = 64
-    MAX_EPOCHS = 15
-    PATIENCE = 5
-    MIN_EPOCHS = 10
-    VALIDATION_FREQ = 1
-    
-    # Early stopping controls
-    EARLY_STOPPING = True
-    MIN_DELTA = 0.001
-    
-    # Validation controls
-    VALIDATION_METRIC = 'loss'
-    VAL_CHECK_INTERVAL = 100
-    
-    # Learning rate scheduling
-    LR_INITIAL = 3e-4
-    LR_MIN = 1e-6
-    WARMUP_EPOCHS = 2
-    LR_SCHEDULE_TYPE = 'cosine'
-    
-    # Model configs
-    DROPOUT_RATE = 0.3
-    LEARNING_RATE = 3e-4
-    WEIGHT_DECAY = 1e-4
-    
-    # Dataset configs
-    DATASET_FRACTION = 100
-    TRAIN_SPLIT = 0.7
-    VAL_SPLIT = 0.15
-    TEST_SPLIT = 0.15
-    IMAGE_SIZE = 224 
-    
-    # GPU optimization
-    GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
-    MIXED_PRECISION = True  # Use automatic mixed precision
-    NUM_WORKERS = 8  # Usually set to number of CPU cores
-    
-    # Augmentation configs
-    AUGMENTATION_RATIO = 0.3  # 30% increase in dataset size
-    AUGMENTATION_PARAMS = {
-        # Geometric transformations
-        'rotation': {'probability': 0.5, 'max_left': 15, 'max_right': 15},
-        'shear': {'probability': 0.3, 'max_shear_left': 10, 'max_shear_right': 10},
-        'flip': {'probability': 0.5},
-        'skew': {'probability': 0.3, 'magnitude': 0.3},
-        
-        # Color transformations
-        'color_jitter': {
-            'probability': 0.3,
-            'brightness': 0.2,  # range: [1-x, 1+x]
-            'contrast': 0.2,
-            'saturation': 0.2,
-            'hue': 0.1  # range: [-x, x]
-        }
-    }
-    
-    # Annotation configs
-    FORCE_NEW_ANNOTATIONS = False  # Whether to force create new annotations
-    ANNOTATION_CACHE = True        # Whether to use cached annotations
-    
-    @classmethod
-    def optimize_gpu(cls):
-        if torch.cuda.is_available():
-            # Set GPU memory allocation
-            torch.backends.cudnn.benchmark = True  # Optimize for fixed input sizes
-            torch.backends.cuda.matmul.allow_tf32 = True  # Allow TF32 on Ampere GPUs
-            torch.backends.cudnn.allow_tf32 = True
-    
-=======
                         (cls.RESULTS_DIR / "cross_evaluation" / source_dataset / model_config["dir_name"] / target_dataset).mkdir(parents=True, exist_ok=True)
         logger.info("Created directory structure.")
 
->>>>>>> main
     @staticmethod
     def setup_logging():
         root_logger = logging.getLogger()

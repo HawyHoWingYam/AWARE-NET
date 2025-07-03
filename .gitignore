@@ -8,3 +8,5 @@ venv/
 results/
 logs/
 *.log
+faces/*
+videos/*
