@@ -155,10 +155,10 @@ class Config:
             logger.info("Created annotations directory for caching")
             
     # Training params
-    BATCH_SIZE = 32
-    MAX_EPOCHS = 2
-    PATIENCE = 5
-    MIN_EPOCHS = 5
+    BATCH_SIZE = 64
+    MAX_EPOCHS = 2#30
+    PATIENCE = 7
+    MIN_EPOCHS = 1#10
     VALIDATION_FREQ = 1
     
     # Early stopping controls
@@ -170,15 +170,15 @@ class Config:
     VAL_CHECK_INTERVAL = 100
     
     # Learning rate scheduling
-    LR_INITIAL = 3e-4
+    LR_INITIAL = 1e-4
     LR_MIN = 1e-6
-    WARMUP_EPOCHS = 2
+    WARMUP_EPOCHS = 3
     LR_SCHEDULE_TYPE = 'cosine'
     
     # Model configs
     DROPOUT_RATE = 0.3
-    LEARNING_RATE = 3e-4
-    WEIGHT_DECAY = 1e-4
+    LEARNING_RATE = 1e-4
+    WEIGHT_DECAY = 1e-5
     
     # Dataset configs
     DATASET_FRACTION = 0.01
@@ -188,9 +188,9 @@ class Config:
     IMAGE_SIZE = 224 
     
     # GPU optimization
-    GRADIENT_ACCUMULATION_STEPS = 2  # Effective batch size = BATCH_SIZE * GRADIENT_ACCUMULATION_STEPS
-    MIXED_PRECISION = True  # Use automatic mixed precision
-    NUM_WORKERS = 8  # Usually set to number of CPU cores
+    GRADIENT_ACCUMULATION_STEPS = 1
+    MIXED_PRECISION = True
+    NUM_WORKERS = 8
     
     # Augmentation configs
     AUGMENTATION_RATIO = 0.3  # 30% increase in dataset size
