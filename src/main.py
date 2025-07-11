@@ -12,6 +12,10 @@ from train import Trainer
 from experiments import ExperimentRunner
 from cross_evaluation import run_cross_evaluations
 
+# 导入WeightedRandomSampler
+from torch.utils.data import WeightedRandomSampler
+import numpy as np
+
 def train_all_models(config, transform):
     logger = logging.getLogger(__name__)
     
@@ -81,6 +85,31 @@ def train_all_models(config, transform):
                 augment=False
             )
             
+            # 計算類別權重
+            labels = train_df['label'].values
+            class_counts = np.bincount(labels)
+            class_weights = 1.0 / class_counts
+            sample_weights = class_weights[labels]
+            
+            # 創建WeightedRandomSampler
+            sampler = WeightedRandomSampler(
+                weights=sample_weights,
+                num_samples=len(train_dataset),
+                replacement=True
+            )
+            
+            # 使用sampler創建DataLoader (注意：使用sampler時需將shuffle設置為False)
+            train_loader = DataLoader(
+                train_dataset, 
+                batch_size=config.BATCH_SIZE,
+                shuffle=False,  # 使用sampler時不要shuffle
+                sampler=sampler,
+                num_workers=4,
+                pin_memory=True,
+                prefetch_factor=2,
+                persistent_workers=True
+            )
+            
             val_dataset = DeepfakeDataset(
                 dataframe=val_df,
                 transform=transform
@@ -92,16 +121,6 @@ def train_all_models(config, transform):
             )
             
             # Create dataloaders
-            train_loader = DataLoader(
-                train_dataset, 
-                batch_size=config.BATCH_SIZE,
-                shuffle=True,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=config.BATCH_SIZE,
@@ -173,6 +192,31 @@ def train_all_models(config, transform):
                 config=config  # Pass config here
             )
             
+            # 計算類別權重
+            labels = train_df['label'].values
+            class_counts = np.bincount(labels)
+            class_weights = 1.0 / class_counts
+            sample_weights = class_weights[labels]
+            
+            # 創建WeightedRandomSampler
+            sampler = WeightedRandomSampler(
+                weights=sample_weights,
+                num_samples=len(train_dataset),
+                replacement=True
+            )
+            
+            # 使用sampler創建DataLoader (注意：使用sampler時需將shuffle設置為False)
+            train_loader = DataLoader(
+                train_dataset, 
+                batch_size=config.BATCH_SIZE,
+                shuffle=False,  # 使用sampler時不要shuffle
+                sampler=sampler,
+                num_workers=4,
+                pin_memory=True,
+                prefetch_factor=2,
+                persistent_workers=True
+            )
+            
             val_dataset = DeepfakeDataset(
                 dataframe=val_df,
                 transform=transform
@@ -184,16 +228,6 @@ def train_all_models(config, transform):
             )
             
             # Create dataloaders
-            train_loader = DataLoader(
-                train_dataset, 
-                batch_size=config.BATCH_SIZE,
-                shuffle=True,
-                num_workers=4,
-                pin_memory=True,
-                prefetch_factor=2,
-                persistent_workers=True
-            )
-            
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=config.BATCH_SIZE,

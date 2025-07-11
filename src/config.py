@@ -181,7 +181,7 @@ class Config:
     WEIGHT_DECAY = 1e-5
     
     # Dataset configs
-    DATASET_FRACTION = 100
+    DATASET_FRACTION = 1
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
