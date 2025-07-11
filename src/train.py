@@ -26,14 +26,22 @@ class Trainer:
         
                 # Replace standard cross entropy with focal loss
         class FocalLoss(nn.Module):
-            def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
+            def __init__(self, alpha=0.25, gamma=2.0, reduction='mean', label_smoothing=0.1, num_classes=2):
                 super(FocalLoss, self).__init__()
                 self.alpha = alpha
                 self.gamma = gamma
                 self.reduction = reduction
+                self.label_smoothing = label_smoothing
+                self.num_classes = num_classes
                 
             def forward(self, inputs, targets):
-                ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none')
+                # One-hot with label smoothing
+                with torch.no_grad():
+                    true_dist = torch.zeros_like(inputs)
+                    true_dist.fill_(self.label_smoothing / (self.num_classes - 1))
+                    true_dist.scatter_(1, targets.unsqueeze(1), 1.0 - self.label_smoothing)
+                log_probs = nn.functional.log_softmax(inputs, dim=1)
+                ce_loss = -(true_dist * log_probs).sum(dim=1)
                 pt = torch.exp(-ce_loss)
                 focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
                 
@@ -44,7 +52,7 @@ class Trainer:
                 else:
                     return focal_loss
                 
-        self.criterion = FocalLoss(alpha=0.25, gamma=2.0)
+        self.criterion = FocalLoss(alpha=0.25, gamma=2.0, label_smoothing=0.1)
         self.optimizer = optim.AdamW(model.parameters(), 
                                    lr=config.LEARNING_RATE, 
                                    weight_decay=config.WEIGHT_DECAY)

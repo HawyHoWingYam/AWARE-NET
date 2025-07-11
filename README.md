@@ -142,4 +142,8 @@ pip install --pre --upgrade --no-cache-dir torchvision --extra-index-url https:/
 2. Threshold Optimization(动态阈值优化策略)
 3. 分層切分 (Stratified Splitting)
 4. Albumentations
+  - ImageCompression
+  - GaussianBlur / MedianBlur
+  - Downscale
+  - GaussNoise / ISONoise
 5. 
