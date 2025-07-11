@@ -10,95 +10,94 @@ import json
 import logging
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
     
 class DeepfakeDataset(Dataset):
     def __init__(self, dataframe, transform=None, augment=False, variant_name=None, config=None):
         self.data = dataframe
-        self.transform = transform
+        self.transform = transform  # 保留原始 transform 用于非增强处理
         self.augment = augment
         self.variant_name = variant_name
         self.config = config
         self.logger = logging.getLogger(__name__)
         
         if augment:
-            self.logger.info("Initializing data augmentation pipeline:")
-            self.augmentor = Augmentor.Pipeline(".")
-            
-            # Geometric transformations
+            self.logger.info("Initializing Albumentations augmentation pipeline:")
             params = self.config.AUGMENTATION_PARAMS
             
-            self.logger.info(f"- Rotation (±{params['rotation']['max_left']}°): p={params['rotation']['probability']}")
-            self.augmentor.rotate(
-                probability=params['rotation']['probability'],
-                max_left_rotation=params['rotation']['max_left'],
-                max_right_rotation=params['rotation']['max_right']
-            )
+            # 创建 Albumentations 转换管道
+            self.albumentations_transform = A.Compose([
+                # 几何变换 (保留原有的)
+                A.Rotate(limit=params['rotation']['max_left'], 
+                         p=params['rotation']['probability']),
+                A.ShiftScaleRotate(
+                    shift_limit=0.05, 
+                    scale_limit=0.05, 
+                    rotate_limit=params['rotation']['max_right'],
+                    p=params['shear']['probability']
+                ),
+                A.HorizontalFlip(p=params['flip']['probability']),
+                
+                # 新增的真实世界退化模拟
+                A.ImageCompression(
+                    quality_lower=60, quality_upper=100, 
+                    p=0.5
+                ),
+                A.OneOf([
+                    A.GaussianBlur(blur_limit=(3, 7), p=0.6),
+                    A.MedianBlur(blur_limit=3, p=0.4),
+                ], p=0.4),
+                A.Downscale(
+                    scale_min=0.6, scale_max=0.9,
+                    p=0.3
+                ),
+                A.OneOf([
+                    A.GaussNoise(var_limit=(10.0, 50.0), p=0.5),
+                    A.ISONoise(color_shift=(0.01, 0.05), intensity=(0.1, 0.5), p=0.5)
+                ], p=0.4),
+            ])
             
-            self.logger.info(f"- Shear (±{params['shear']['max_shear_left']}°): p={params['shear']['probability']}")
-            self.augmentor.shear(
-                probability=params['shear']['probability'],
-                max_shear_left=params['shear']['max_shear_left'],
-                max_shear_right=params['shear']['max_shear_right']
-            )
+            self.logger.info("Albumentations augmentation pipeline:")
+            self.logger.info("- Rotation: p={:.1f}".format(params['rotation']['probability']))
+            self.logger.info("- ShiftScaleRotate: p={:.1f}".format(params['shear']['probability']))
+            self.logger.info("- HorizontalFlip: p={:.1f}".format(params['flip']['probability']))
+            self.logger.info("- ImageCompression: p=0.5")
+            self.logger.info("- Blur (Gaussian/Median): p=0.4")
+            self.logger.info("- Downscale: p=0.3")
+            self.logger.info("- Noise (Gaussian/ISO): p=0.4")
             
-            self.logger.info(f"- Flip: p={params['flip']['probability']}")
-            self.augmentor.flip_left_right(probability=params['flip']['probability'])
-            
-            self.logger.info(f"- Skew: p={params['skew']['probability']}")
-            self.augmentor.skew(
-                probability=params['skew']['probability'],
-                magnitude=params['skew']['magnitude']
-            )
-            
-            # Color transformations
-            color_params = params['color_jitter']
-            self.logger.info(f"- Color Jitter: p={color_params['probability']}")
-            self.augmentor.random_brightness(
-                probability=color_params['probability'],
-                min_factor=1-color_params['brightness'],
-                max_factor=1+color_params['brightness']
-            )
-            self.augmentor.random_contrast(
-                probability=color_params['probability'],
-                min_factor=1-color_params['contrast'],
-                max_factor=1+color_params['contrast']
-            )
-            self.augmentor.random_color(
-                probability=color_params['probability'],
-                min_factor=1-color_params['saturation'],
-                max_factor=1+color_params['saturation']
-            )
-            
-            # Create augmented versions of the dataset
+            # 创建增强数据集
             self.augmented_data = self._create_augmented_dataset()
             self.data = pd.concat([self.data, self.augmented_data], ignore_index=True)
             self.logger.info(f"Dataset size increased from {len(dataframe)} to {len(self.data)} with augmentations")
             
-            # Save sample augmented images
+            # 保存样本增强图像
             self.save_augmented_samples()
     
     def _create_augmented_dataset(self):
-        """Create augmented versions of the dataset"""
+        """Create augmented versions of the dataset using Albumentations"""
         augmented_data = []
         
-        # Calculate how many augmented images we need
+        # 计算需要增强的图像数量
         num_images = len(self.data)
         target_aug_images = int(num_images * self.config.AUGMENTATION_RATIO)
         
         self.logger.info(f"Creating {target_aug_images} augmented images ({self.config.AUGMENTATION_RATIO*100}% of {num_images})")
         
-        # Randomly select images to augment
+        # 随机选择图像进行增强
         indices = np.random.choice(num_images, size=target_aug_images, replace=True)
         
         for idx in indices:
             row = self.data.iloc[idx]
             image = Image.open(row['image_path']).convert('RGB')
-            
-            # Create augmented version
             image_np = np.array(image)
-            aug_image_np = self.augmentor._execute_with_array(image_np)
             
-            # Create new row with augmented image info
+            # 使用 Albumentations 进行增强
+            augmented = self.albumentations_transform(image=image_np)
+            aug_image_np = augmented['image']
+            
+            # 创建新行记录增强图像信息
             aug_row = row.copy()
             aug_row['is_augmented'] = True
             augmented_data.append(aug_row)
@@ -111,34 +110,34 @@ class DeepfakeDataset(Dataset):
     def save_augmented_samples(self):
         """Save sample augmented images for visualization"""
         try:
-            # Randomly select 3 images
+            # 随机选择 3 张图像
             sample_indices = np.random.choice(len(self.data), size=3, replace=False)
             
             for i, idx in enumerate(sample_indices):
                 row = self.data.iloc[idx]
                 orig_image = Image.open(row['image_path']).convert('RGB')
+                orig_image_np = np.array(orig_image)
                 
-                # Create 3x3 grid of augmented images
+                # 创建 3x3 网格展示增强图像
                 fig, axes = plt.subplots(3, 3, figsize=(12, 12))
-                fig.suptitle('Deepfake-Specific Augmentations', fontsize=16)
+                fig.suptitle('Albumentations - Real-World Degradations', fontsize=16)
                 
-                # Original image in center
+                # 原始图像放在中间
                 axes[1, 1].imshow(orig_image)
                 axes[1, 1].set_title('Original')
                 axes[1, 1].axis('off')
                 
-                # 8 augmented versions around it
+                # 8 个增强版本围绕原图
                 aug_positions = [(i,j) for i in range(3) for j in range(3) if (i,j) != (1,1)]
                 for pos in aug_positions:
-                    aug_image = orig_image.copy()
-                    aug_image_np = np.array(aug_image)
-                    aug_image_np = self.augmentor._execute_with_array(aug_image_np)
-                    aug_image = Image.fromarray(aug_image_np.astype('uint8'))
+                    # 使用 Albumentations 进行增强
+                    augmented = self.albumentations_transform(image=orig_image_np.copy())
+                    aug_image_np = augmented['image']
                     
-                    axes[pos[0], pos[1]].imshow(aug_image)
+                    axes[pos[0], pos[1]].imshow(aug_image_np)
                     axes[pos[0], pos[1]].axis('off')
                 
-                # Save plot
+                # 保存图像
                 dataset = 'ff++' if 'ff++' in row['image_path'] else 'celebdf'
                 model_type = self.variant_name.split('_')[1]
                 save_dir = self.config.RESULTS_DIR / 'plots' / dataset / model_type / 'with_aug' / 'augmented_samples'
@@ -160,16 +159,25 @@ class DeepfakeDataset(Dataset):
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
         image = Image.open(row['image_path']).convert('RGB')
+        image_np = np.array(image)
         
         if self.augment:
-            # Convert PIL Image to numpy array
-            image_np = np.array(image)
-            # Apply augmentations
-            image_np = self.augmentor._execute_with_array(image_np)
-            # Convert back to PIL Image
-            image = Image.fromarray(image_np.astype('uint8'))
+            # 使用 Albumentations 进行实时增强
+            augmented = self.albumentations_transform(image=image_np)
+            image_np = augmented['image']
+            
+            # 如果原始 transform 为 None，需要转换为张量
+            if self.transform is None:
+                to_tensor = ToTensorV2()
+                augmented = to_tensor(image=image_np)
+                image_tensor = augmented['image']
+                return image_tensor, row['label']
         
+        # 如果有原始 transform，使用它
         if self.transform:
+            # 将 numpy 数组转回 PIL Image
+            if isinstance(image_np, np.ndarray):
+                image = Image.fromarray(image_np.astype('uint8'))
             image = self.transform(image)
             
         return image, row['label']

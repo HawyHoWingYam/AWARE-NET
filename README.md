@@ -137,7 +137,9 @@ pip install --pre --upgrade --no-cache-dir torch --extra-index-url https://downl
 
 pip install --pre --upgrade --no-cache-dir torchvision --extra-index-url https://download.pytorch.org/whl/nightly/cu128
 
-技術要點
+已經實施的技術要點
 1. Focal Loss
 2. Threshold Optimization(动态阈值优化策略)
-3. 
+3. 分層切分 (Stratified Splitting)
+4. Albumentations
+5. 

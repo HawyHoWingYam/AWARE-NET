@@ -4,6 +4,7 @@ torchvision
 torchaudio
 timm>=0.9.0
 
+
 # Data Processing & Scientific Computing
 pandas
 numpy
@@ -11,7 +12,8 @@ scikit-learn
 
 # Image Processing & Augmentation
 Pillow
-Augmentor
+# Augmentor
+albumentations>=1.3.0
 
 # Visualization
 matplotlib
