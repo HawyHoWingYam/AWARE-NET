@@ -20,7 +20,7 @@ class Trainer:
         self.variant_name = variant_name
         self.logger = logging.getLogger(__name__)
         self.best_val_loss = float('inf')  # Track best validation loss
-        
+        self.optimal_threshold = 0.5  # Default threshold
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         
@@ -137,7 +137,7 @@ class Trainer:
         
         return epoch_loss, epoch_auc
     
-    def validate(self, loader):
+    def validate(self, loader, find_optimal_threshold=False):
         self.model.eval()
         total_loss = 0
         predictions = []
@@ -166,7 +166,30 @@ class Trainer:
                 })
         
         epoch_loss = total_loss / len(loader)
+        
+        # Compute default metrics with standard threshold
         epoch_auc = roc_auc_score(true_labels, predictions)
+        
+        if find_optimal_threshold:
+            # Find optimal threshold on validation data
+            optimal_threshold = optimize_threshold(true_labels, predictions)
+            # Store the threshold in the instance
+            self.optimal_threshold = optimal_threshold
+            # Apply optimal threshold
+            binary_preds = (np.array(predictions) >= optimal_threshold).astype(int)
+            # Compute metrics with optimal threshold
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                true_labels, binary_preds, average='binary'
+            )
+            accuracy = accuracy_score(true_labels, binary_preds)
+            
+            return epoch_loss, epoch_auc, predictions, true_labels, {
+                'optimal_threshold': optimal_threshold,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+                'accuracy': accuracy
+            }
         
         return epoch_loss, epoch_auc, predictions, true_labels
     
@@ -224,7 +247,8 @@ class Trainer:
                     'val_auc': self.best_val_auc,
                     'metrics_history': self.metrics_history,
                     'augmentation_status': not is_no_aug,
-                    'model_name': dir_name
+                    'model_name': dir_name,
+                    'optimal_threshold': self.optimal_threshold  # Add threshold to checkpoint
                 }
                 
                 torch.save(checkpoint, model_path)
@@ -263,7 +287,21 @@ class Trainer:
             train_loss, train_auc = self.train_epoch()
             
             # Validation
-            val_loss, val_auc, _, _ = self.validate(self.val_loader)
+            val_loss, val_auc, val_preds, val_labels, threshold_metrics = self.validate(
+                self.val_loader, find_optimal_threshold=True
+            )
+
+            # Store optimal threshold in metrics history
+            self.metrics_history['optimal_thresholds'] = self.metrics_history.get('optimal_thresholds', [])
+            self.metrics_history['optimal_thresholds'].append(float(threshold_metrics['optimal_threshold']))
+
+            # Log the results
+            self.logger.info(
+                f"Optimal threshold: {threshold_metrics['optimal_threshold']:.4f}, "
+                f"F1 score: {threshold_metrics['f1']:.4f}, "
+                f"Precision: {threshold_metrics['precision']:.4f}, "
+                f"Recall: {threshold_metrics['recall']:.4f}"
+            )
             
             # Store current learning rate
             current_lr = self.scheduler.get_last_lr()[0]
@@ -394,3 +432,25 @@ class Trainer:
                 f"Reserved: {memory_reserved:.2f}GB\n"
                 f"Peak allocation: {max_memory:.2f}GB"
             )
+
+def optimize_threshold(y_true, y_pred_proba):
+    """
+    Find the optimal classification threshold that maximizes F1-score
+    
+    Args:
+        y_true: Ground truth labels (0 or 1)
+        y_pred_proba: Predicted probabilities from model
+        
+    Returns:
+        optimal_threshold: The threshold that maximizes F1-score
+    """
+    thresholds = np.arange(0.01, 1.0, 0.01)
+    f1_scores = []
+    
+    for threshold in thresholds:
+        y_pred = (y_pred_proba >= threshold).astype(int)
+        f1 = precision_recall_fscore_support(y_true, y_pred, average='binary')[2]
+        f1_scores.append(f1)
+    
+    optimal_idx = np.argmax(f1_scores)
+    return thresholds[optimal_idx]
