@@ -56,7 +56,7 @@ def cross_dataset_evaluate(config, transform, source_dataset, target_dataset, mo
     model_path = weight_files[0]  # There should be only one file
     logger.info(f"Loading model from: {model_path}")
     
-    checkpoint = torch.load(model_path)
+    checkpoint = torch.load(model_path, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     
