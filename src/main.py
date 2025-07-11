@@ -143,8 +143,8 @@ def train_all_models(config, transform):
             experimenter = ExperimentRunner(config, model, trainer)
             results = experimenter.run_experiments(test_loader)
             
-            logger.info(f"Results for {variant_name}:")
-            logger.info(json.dumps(results, indent=2))
+            # logger.info(f"Results for {variant_name}:")
+            # logger.info(json.dumps(results, indent=2))
     
     # Then run with augmentation for all models and datasets
     logger.info("\n" + "="*50 + "\nStarting training with augmentation\n" + "="*50)
@@ -235,8 +235,8 @@ def train_all_models(config, transform):
             experimenter = ExperimentRunner(config, model, trainer)
             results = experimenter.run_experiments(test_loader)
             
-            logger.info(f"Results for {variant_name}:")
-            logger.info(json.dumps(results, indent=2))
+            # logger.info(f"Results for {variant_name}:")
+            # logger.info(json.dumps(results, indent=2))
     
     # Run cross-dataset evaluation after training
     run_cross_evaluations(config, transform, models_config)
