@@ -9,7 +9,8 @@ import Augmentor
 import json
 import logging
 import matplotlib.pyplot as plt
-
+from sklearn.model_selection import train_test_split
+    
 class DeepfakeDataset(Dataset):
     def __init__(self, dataframe, transform=None, augment=False, variant_name=None, config=None):
         self.data = dataframe
@@ -175,6 +176,7 @@ class DeepfakeDataset(Dataset):
 
 def create_data_splits(config, dataset_name, force_new=None):
     logger = logging.getLogger(__name__)
+
     
     # Check if we should use force_new from config
     if force_new is None:
@@ -253,17 +255,26 @@ def create_data_splits(config, dataset_name, force_new=None):
     if not all_data:
         raise ValueError(f"No images found for {dataset_name}")
     
-    # Create DataFrame and split
+    # Create DataFrame and shuffle
     df = pd.DataFrame(all_data)
-    df = df.sample(frac=1, random_state=42).reset_index(drop=True)
     
-    # Split data
-    train_idx = int(len(df) * config.TRAIN_SPLIT)
-    val_idx = train_idx + int(len(df) * config.VAL_SPLIT)
+    # 使用 stratified splits 確保類別比例保持一致
+    # 首先分出測試集
+    train_val_df, test_df = train_test_split(
+        df, 
+        test_size=1-config.TRAIN_SPLIT-config.VAL_SPLIT,
+        random_state=42,
+        stratify=df['label']
+    )
     
-    train_df = df[:train_idx]
-    val_df = df[train_idx:val_idx]
-    test_df = df[val_idx:]
+    # 然後從剩餘數據中分出驗證集
+    val_size = config.VAL_SPLIT / (config.TRAIN_SPLIT + config.VAL_SPLIT)
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=val_size,
+        random_state=42,
+        stratify=train_val_df['label']
+    )
     
     logger.info(f"Dataset Statistics:")
     logger.info(f"Total samples: {len(df)}")
