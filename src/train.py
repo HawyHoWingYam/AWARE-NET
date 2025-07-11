@@ -23,7 +23,28 @@ class Trainer:
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        self.criterion = nn.CrossEntropyLoss()
+        
+                # Replace standard cross entropy with focal loss
+        class FocalLoss(nn.Module):
+            def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
+                super(FocalLoss, self).__init__()
+                self.alpha = alpha
+                self.gamma = gamma
+                self.reduction = reduction
+                
+            def forward(self, inputs, targets):
+                ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none')
+                pt = torch.exp(-ce_loss)
+                focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+                
+                if self.reduction == 'mean':
+                    return focal_loss.mean()
+                elif self.reduction == 'sum':
+                    return focal_loss.sum()
+                else:
+                    return focal_loss
+                
+        self.criterion = FocalLoss(alpha=0.25, gamma=2.0)
         self.optimizer = optim.AdamW(model.parameters(), 
                                    lr=config.LEARNING_RATE, 
                                    weight_decay=config.WEIGHT_DECAY)

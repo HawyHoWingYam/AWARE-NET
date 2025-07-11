@@ -156,9 +156,9 @@ class Config:
             
     # Training params
     BATCH_SIZE = 64
-    MAX_EPOCHS = 2#30
+    MAX_EPOCHS = 15
     PATIENCE = 7
-    MIN_EPOCHS = 1#10
+    MIN_EPOCHS = 10
     VALIDATION_FREQ = 1
     
     # Early stopping controls
@@ -181,7 +181,7 @@ class Config:
     WEIGHT_DECAY = 1e-5
     
     # Dataset configs
-    DATASET_FRACTION = 0.01
+    DATASET_FRACTION = 100
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.15
     TEST_SPLIT = 0.15
