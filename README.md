@@ -146,4 +146,4 @@ pip install --pre --upgrade --no-cache-dir torchvision --extra-index-url https:/
   - GaussianBlur / MedianBlur
   - Downscale
   - GaussNoise / ISONoise
-5. 
+5. Regularization + Label Smoothing

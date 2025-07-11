@@ -3,6 +3,15 @@ import torch.nn as nn
 import timm
 import logging
 import os
+import torch.serialization
+import numpy as np
+
+# 允许加载带有numpy标量的模型
+try:
+    import torch.serialization
+    torch.serialization.add_safe_globals(['numpy._core.multiarray.scalar'])
+except Exception as e:
+    print(f"无法添加安全全局变量，将使用 weights_only=False 参数: {e}")
 
 class BaseModel(nn.Module):
     def __init__(self, timm_name, config, pretrained=True):
@@ -11,16 +20,32 @@ class BaseModel(nn.Module):
         self.logger = logging.getLogger(__name__)
         
         try:
-            # Create model with 2 output classes (real/fake)
-            self.model = timm.create_model(
+            # Create base model without classifier head
+            self.base_model = timm.create_model(
                 timm_name,
                 pretrained=pretrained,
-                num_classes=2,  # Binary classification
-                drop_rate=config.DROPOUT_RATE   # Add dropout for regularization
+                num_classes=0,  # Remove classifier
+                drop_rate=config.DROPOUT_RATE   # Global dropout
+            )
+            
+            # Get the classifier input features
+            if hasattr(self.base_model, 'num_features'):
+                in_features = self.base_model.num_features
+            elif hasattr(self.base_model, 'fc'):
+                in_features = self.base_model.fc.in_features
+            elif hasattr(self.base_model, 'classifier'):
+                in_features = self.base_model.classifier.in_features
+            else:
+                raise ValueError(f"Can't determine feature dimension for {timm_name}")
+            
+            # Create new classifier with explicit dropout before final layer
+            self.classifier = nn.Sequential(
+                nn.Dropout(config.CLASSIFIER_DROPOUT_RATE),  # Explicit dropout before classification
+                nn.Linear(in_features, 2)  # Binary classification layer
             )
             
             # Log model size
-            num_params = sum(p.numel() for p in self.model.parameters())
+            num_params = sum(p.numel() for p in self.parameters())
             self.logger.info(f"Loaded {timm_name} with {num_params:,} parameters")
             
         except Exception as e:
@@ -28,18 +53,21 @@ class BaseModel(nn.Module):
             raise
     
     def forward(self, x):
-        return self.model(x)
+        # Extract features from base model
+        features = self.base_model(x)
+        # Apply classifier with dropout
+        return self.classifier(features)
     
     def load_pretrained_weights(self, weights_path):
         """Load pretrained weights, handling both full checkpoints and state dicts"""
         try:
-            checkpoint = torch.load(weights_path)
+            checkpoint = torch.load(weights_path, weights_only=False)
             # If it's a full checkpoint with metadata
             if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-                self.model.load_state_dict(checkpoint['model_state_dict'])
+                self.base_model.load_state_dict(checkpoint['model_state_dict'])
             # If it's just the model state dict
             else:
-                self.model.load_state_dict(checkpoint)
+                self.base_model.load_state_dict(checkpoint)
             return True
         except Exception as e:
             self.logger.warning(f"No pre-trained weights found for {self.timm_name}, using base initialization")
@@ -55,15 +83,9 @@ class SingleModelDetector(nn.Module):
         timm_model_name = config.MODELS[model_name]['timm_name']
         self.model = BaseModel(timm_model_name, config)
         self.timm_name = model_name  # Store the config key instead of timm_name
-        self.feature_extractor = self.model.model.features # Assuming the backbone is the features part
-        self.dropout = nn.Dropout(p=0.5) # 你可以调整p的值，常用0.3~0.5
-        self.fc = self.model.model.head # Assuming the head is the final classification layer
     
     def forward(self, x):
-        x = self.feature_extractor(x)
-        x = self.dropout(x) # 在全连接层前应用Dropout
-        x = self.fc(x)
-        return x
+        return self.model(x)
     
     def get_model_weights(self):
         # For single models, return None or empty array since there are no ensemble weights
@@ -79,7 +101,7 @@ class SingleModelDetector(nn.Module):
             
             try:
                 # Load the checkpoint
-                checkpoint = torch.load(weights_path, map_location='cpu')
+                checkpoint = torch.load(weights_path, map_location='cpu', weights_only=False)
                 
                 # Extract model state dict from checkpoint
                 if isinstance(checkpoint, dict):
@@ -204,7 +226,7 @@ class EnsembleDeepfakeDetector(nn.Module):
         self.logger.info(f"Loading weights for {model_name} from {weights_path.name}")
         
         try:
-            checkpoint = torch.load(weights_path, map_location='cpu')
+            checkpoint = torch.load(weights_path, map_location='cpu', weights_only=False)
             
             # Handle both old and new checkpoint formats
             if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
