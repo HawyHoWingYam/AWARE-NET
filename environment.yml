@@ -1,0 +1,49 @@
+name: aware-net
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  # Core Python version
+  - python=3.10  # Stable and widely supported version for deep learning
+
+  # PyTorch ecosystem
+  - pytorch=2.1.*  # Core deep learning framework
+  - torchvision=0.16.*  # Computer vision utilities and models
+  - torchaudio=2.1.*  # Audio processing (for completeness)
+  - pytorch-cuda=11.8  # CUDA support for GPU acceleration
+
+  # Model loading and pre-trained models
+  - timm  # PyTorch Image Models - for MobileNetV4, EfficientNetV2, GenConViT
+  
+  # Computer vision and video processing
+  - opencv  # Video reading, frame extraction, image resizing
+  
+  # Data science and evaluation
+  - scikit-learn  # AUC, F1-Score calculation and probability calibration
+  - pandas  # Data manifest file creation and management
+  - numpy  # Fundamental numerical computing
+  
+  # Machine learning models
+  - lightgbm  # Gradient boosting for meta-model training
+  
+  # Visualization and utilities
+  - matplotlib  # Plotting and chart generation
+  - seaborn  # Statistical data visualization
+  - tqdm  # Progress bars for data processing and training
+  
+  # Development and analysis tools
+  - jupyterlab  # Interactive development and exploratory data analysis
+  
+  # Additional useful packages
+  - pillow  # Image processing library
+  - requests  # HTTP requests for downloading datasets
+  
+  # Pip dependencies (packages not available through conda)
+  - pip
+  - pip:
+    - facenet-pytorch  # Efficient and accurate face detection
+    - mtcnn  # Alternative face detection method
+    - albumentations  # Advanced data augmentation
+    - tensorboard  # Training visualization and monitoring
+    - wandb  # Experiment tracking and visualization
