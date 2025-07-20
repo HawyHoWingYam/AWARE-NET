@@ -4,14 +4,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  # Core Python version
-  - python=3.10  # Stable and widely supported version for deep learning
+  # Core Python version (updated to latest stable)
+  - python=3.13  # Latest stable version with improved performance
 
-  # PyTorch ecosystem
-  - pytorch=2.1.*  # Core deep learning framework
-  - torchvision=0.16.*  # Computer vision utilities and models
-  - torchaudio=2.1.*  # Audio processing (for completeness)
-  - pytorch-cuda=11.8  # CUDA support for GPU acceleration
+  # Note: PyTorch with CUDA support needs manual installation for RTX 5060Ti/5090
+  # Run after environment creation: conda install pytorch torchvision torchaudio pytorch-cuda=12.1
 
   # Model loading and pre-trained models
   - timm  # PyTorch Image Models - for MobileNetV4, EfficientNetV2, GenConViT
@@ -22,7 +19,7 @@ dependencies:
   # Data science and evaluation
   - scikit-learn  # AUC, F1-Score calculation and probability calibration
   - pandas  # Data manifest file creation and management
-  - numpy  # Fundamental numerical computing
+  - numpy  # Fundamental numerical computing (PyTorch 2.7+ compatible)
   
   # Machine learning models
   - lightgbm  # Gradient boosting for meta-model training
@@ -38,12 +35,23 @@ dependencies:
   # Additional useful packages
   - pillow  # Image processing library
   - requests  # HTTP requests for downloading datasets
-  
+
   # Pip dependencies (packages not available through conda)
   - pip
   - pip:
-    - facenet-pytorch  # Efficient and accurate face detection
-    - mtcnn  # Alternative face detection method
+    # GPU Video Processing (Windows optimized)
+    - decord  # High-performance GPU video processing for Windows
+    
+    # Advanced Face Detection (PyTorch 2.7+ compatible)
+    - insightface  # High-performance GPU face detection (recommended)
+    - onnxruntime-gpu  # Required for InsightFace GPU acceleration
+    - mediapipe  # Google's optimized face detection with GPU support
+    - ultralytics  # YOLOv8 for general object/face detection
+    - mtcnn  # Lightweight face detection backup
+    
+    # Data augmentation and visualization
     - albumentations  # Advanced data augmentation
     - tensorboard  # Training visualization and monitoring
-    - wandb  # Experiment tracking and visualization
+    - wandb  # Experiment tracking and visualization (optional)
+    
+    # Note: facenet-pytorch removed due to PyTorch 2.7+ incompatibility
