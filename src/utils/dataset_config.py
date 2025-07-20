@@ -59,8 +59,7 @@ class DatasetPathConfig:
                     "name": "CelebDF-v2",
                     "base_path": "CelebDF-v2",
                     "real_videos": [
-                        "Celeb-real",
-                        "YouTube-real"
+                        "Celeb-real"
                     ],
                     "fake_videos": [
                         "Celeb-synthesis"
@@ -68,6 +67,24 @@ class DatasetPathConfig:
                     "test_list_file": "List_of_testing_videos.txt",
                     "supported_extensions": [".mp4", ".avi"],
                     "description": "Celebrity deepfake detection dataset"
+                },
+                "df40": {
+                    "name": "DF40",
+                    "base_path": "DF40",
+                    "real_videos": [],
+                    "fake_videos": [
+                        "blendface",
+                        "e4s",
+                        "facedancer",
+                        "faceswap",
+                        "frames",
+                        "fsgan",
+                        "inswap",
+                        "mobileswap",
+                        "simswap"
+                    ],
+                    "supported_extensions": [".mp4", ".avi", ".mov"],
+                    "description": "DF40 fake video dataset"
                 },
                 "ffpp": {
                     "name": "FaceForensics++",
@@ -97,9 +114,27 @@ class DatasetPathConfig:
                     "name": "DFDC",
                     "base_path": "DFDC",
                     "metadata_file": "metadata.json",
-                    "folder_pattern": "dfdc_train_part_*",
+                    "folder_pattern": "*",
+                    "real_videos": [
+                        "real"
+                    ],
+                    "fake_videos": [
+                        "fake"
+                    ],
                     "supported_extensions": [".mp4"],
-                    "description": "Deepfake Detection Challenge dataset"
+                    "description": "Deepfake Detection Challenge dataset (classified)"
+                },
+                "dfdc_classified": {
+                    "name": "DFDC_Classified",
+                    "base_path": "DFDC_classified",
+                    "real_videos": [
+                        "real"
+                    ],
+                    "fake_videos": [
+                        "fake"
+                    ],
+                    "supported_extensions": [".mp4"],
+                    "description": "DFDC dataset pre-classified into real/fake folders"
                 }
             },
             "processing": {
@@ -132,7 +167,14 @@ class DatasetPathConfig:
         elif dataset_name == "ffpp":
             video_paths.extend(self._get_ffpp_paths(dataset_config))
         elif dataset_name == "dfdc":
-            video_paths.extend(self._get_dfdc_paths(dataset_config))
+            if dataset_config.get("use_simple_structure", False):
+                video_paths.extend(self._get_simple_folder_paths(dataset_config))
+            else:
+                video_paths.extend(self._get_dfdc_paths(dataset_config))
+        elif dataset_name == "df40":
+            video_paths.extend(self._get_df40_paths(dataset_config))
+        elif dataset_name == "dfdc_classified":
+            video_paths.extend(self._get_simple_folder_paths(dataset_config))
         
         return video_paths
     
@@ -222,34 +264,135 @@ class DatasetPathConfig:
         video_paths = []
         base_path = config["full_base_path"]
         
-        # 查找所有匹配的文件夹
-        import glob
-        pattern = os.path.join(base_path, config["folder_pattern"])
-        for folder_path in glob.glob(pattern):
-            if os.path.isdir(folder_path):
-                metadata_file = os.path.join(folder_path, config["metadata_file"])
+        # 检查是否使用新的简单文件夹结构（real/fake）
+        real_folder = os.path.join(base_path, "real") if "real" in config.get("real_videos", []) else None
+        fake_folder = os.path.join(base_path, "fake") if "fake" in config.get("fake_videos", []) else None
+        
+        if real_folder and os.path.exists(real_folder):
+            # 使用简单的real/fake文件夹结构
+            return self._get_simple_folder_paths(config)
+        else:
+            # 使用原始的metadata.json结构
+            import glob
+            pattern = os.path.join(base_path, config["folder_pattern"])
+            for folder_path in glob.glob(pattern):
+                if os.path.isdir(folder_path):
+                    metadata_file = os.path.join(folder_path, config["metadata_file"])
+                    
+                    if os.path.exists(metadata_file):
+                        try:
+                            with open(metadata_file, 'r') as f:
+                                metadata = json.load(f)
+                            
+                            for video_file, info in metadata.items():
+                                video_path = os.path.join(folder_path, video_file)
+                                if os.path.exists(video_path):
+                                    folder_name = os.path.basename(folder_path)
+                                    video_id = os.path.splitext(video_file)[0]
+                                    
+                                    video_paths.append({
+                                        "video_path": video_path,
+                                        "video_id": f"dfdc_{folder_name}_{video_id}",
+                                        "label": "real" if info.get("label") == "REAL" else "fake",
+                                        "dataset": "dfdc",
+                                        "folder": folder_name,
+                                        "split": "train"  # DFDC主要用于训练
+                                    })
+                        except Exception as e:
+                            logging.error(f"Error reading metadata from {metadata_file}: {e}")
+        
+        return video_paths
+    
+    def _get_df40_paths(self, config: Dict) -> List[Dict]:
+        """获取DF40数据集的所有图像路径（只有fake图像，已预处理）"""
+        image_paths = []
+        base_path = config["full_base_path"]
+        
+        # DF40数据集包含已处理的图像，不是视频
+        # 检查根目录frames文件夹
+        root_frames_dir = os.path.join(base_path, "frames")
+        if os.path.exists(root_frames_dir):
+            subfolders = [f for f in os.listdir(root_frames_dir) if os.path.isdir(os.path.join(root_frames_dir, f))]
+            for subfolder in subfolders:
+                subfolder_path = os.path.join(root_frames_dir, subfolder)
+                images = [f for f in os.listdir(subfolder_path) if f.endswith('.png')]
                 
-                if os.path.exists(metadata_file):
-                    try:
-                        with open(metadata_file, 'r') as f:
-                            metadata = json.load(f)
-                        
-                        for video_file, info in metadata.items():
-                            video_path = os.path.join(folder_path, video_file)
-                            if os.path.exists(video_path):
-                                folder_name = os.path.basename(folder_path)
-                                video_id = os.path.splitext(video_file)[0]
-                                
-                                video_paths.append({
-                                    "video_path": video_path,
-                                    "video_id": f"dfdc_{folder_name}_{video_id}",
-                                    "label": "real" if info.get("label") == "REAL" else "fake",
-                                    "dataset": "dfdc",
-                                    "folder": folder_name,
-                                    "split": "train"  # DFDC主要用于训练
-                                })
-                    except Exception as e:
-                        logging.error(f"Error reading metadata from {metadata_file}: {e}")
+                for image_file in images:
+                    image_id = f"df40_root_{subfolder}_{os.path.splitext(image_file)[0]}"
+                    image_paths.append({
+                        "image_path": os.path.join(subfolder_path, image_file),
+                        "image_id": image_id,
+                        "video_id": image_id,  # 保持兼容性
+                        "video_path": os.path.join(subfolder_path, image_file),  # 保持兼容性
+                        "label": "fake",
+                        "dataset": "df40", 
+                        "method": "mixed",
+                        "source_folder": subfolder,
+                        "split": "train",
+                        "is_processed": True  # 标记为已处理的图像
+                    })
+        
+        # 检查method-specific文件夹中的frames
+        for fake_dir in config["fake_videos"]:  # 使用fake_videos配置，但实际处理的是图像
+            fake_frames_path = os.path.join(base_path, fake_dir, "frames")
+            if os.path.exists(fake_frames_path):
+                subfolders = [f for f in os.listdir(fake_frames_path) if os.path.isdir(os.path.join(fake_frames_path, f))]
+                
+                for subfolder in subfolders:
+                    subfolder_path = os.path.join(fake_frames_path, subfolder)
+                    images = [f for f in os.listdir(subfolder_path) if f.endswith('.png')]
+                    
+                    for image_file in images:
+                        image_id = f"df40_{fake_dir}_{subfolder}_{os.path.splitext(image_file)[0]}"
+                        image_paths.append({
+                            "image_path": os.path.join(subfolder_path, image_file),
+                            "image_id": image_id,
+                            "label": "fake",
+                            "dataset": "df40",
+                            "method": fake_dir,
+                            "source_folder": subfolder,
+                            "split": "train",
+                            "is_processed": True  # 标记为已处理的图像
+                        })
+        
+        return image_paths
+    
+    def _get_simple_folder_paths(self, config: Dict) -> List[Dict]:
+        """获取简单文件夹结构的数据集路径（如DFDC_classified）"""
+        video_paths = []
+        base_path = config["full_base_path"]
+        
+        # 处理真实视频
+        for real_dir in config["real_videos"]:
+            real_path = os.path.join(base_path, real_dir)
+            if os.path.exists(real_path):
+                for video_file in os.listdir(real_path):
+                    if any(video_file.endswith(ext) for ext in config["supported_extensions"]):
+                        video_id = os.path.splitext(video_file)[0]
+                        video_paths.append({
+                            "video_path": os.path.join(real_path, video_file),
+                            "video_id": f"{config['name'].lower()}_{real_dir}_{video_id}",
+                            "label": "real",
+                            "dataset": config["name"].lower().replace("-", "_"),
+                            "source_dir": real_dir,
+                            "split": "train"
+                        })
+        
+        # 处理伪造视频
+        for fake_dir in config["fake_videos"]:
+            fake_path = os.path.join(base_path, fake_dir)
+            if os.path.exists(fake_path):
+                for video_file in os.listdir(fake_path):
+                    if any(video_file.endswith(ext) for ext in config["supported_extensions"]):
+                        video_id = os.path.splitext(video_file)[0]
+                        video_paths.append({
+                            "video_path": os.path.join(fake_path, video_file),
+                            "video_id": f"{config['name'].lower()}_{fake_dir}_{video_id}",
+                            "label": "fake",
+                            "dataset": config["name"].lower().replace("-", "_"),
+                            "source_dir": fake_dir,
+                            "split": "train"
+                        })
         
         return video_paths
     
@@ -333,7 +476,7 @@ class DatasetPathConfig:
         
         for dataset_name, dataset_config in self.config["datasets"].items():
             full_path = os.path.join(self.config["base_paths"]["raw_datasets"], dataset_config["base_path"])
-            exists = "✓" if os.path.exists(full_path) else "✗"
+            exists = "OK" if os.path.exists(full_path) else "ERROR"
             print(f"  {exists} {dataset_name}: {full_path}")
         
         print(f"\nProcessing parameters:")

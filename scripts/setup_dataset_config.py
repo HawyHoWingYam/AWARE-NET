@@ -65,8 +65,7 @@ def interactive_setup():
                 "name": "CelebDF-v2",
                 "base_path": "CelebDF-v2",
                 "real_videos": [
-                    "Celeb-real",
-                    "YouTube-real"
+                    "Celeb-real"
                 ],
                 "fake_videos": [
                     "Celeb-synthesis"
@@ -74,6 +73,38 @@ def interactive_setup():
                 "test_list_file": "List_of_testing_videos.txt",
                 "supported_extensions": [".mp4", ".avi", ".mov"],
                 "description": "Celebrity deepfake detection dataset"
+            },
+            "df40": {
+                "name": "DF40",
+                "base_path": "DF40",
+                "real_videos": [],
+                "fake_videos": [
+                    "blendface",
+                    "e4s",
+                    "facedancer",
+                    "faceswap",
+                    "frames",
+                    "fsgan",
+                    "inswap",
+                    "mobileswap",
+                    "simswap"
+                ],
+                "supported_extensions": [".mp4", ".avi", ".mov"],
+                "description": "DF40 fake video dataset"
+            },
+            "dfdc": {
+                "name": "DFDC",
+                "base_path": "DFDC",
+                "metadata_file": "metadata.json",
+                "folder_pattern": "*",
+                "real_videos": [
+                    "real"
+                ],
+                "fake_videos": [
+                    "fake"
+                ],
+                "supported_extensions": [".mp4"],
+                "description": "Deepfake Detection Challenge dataset (classified)"
             },
             "ffpp": {
                 "name": "FaceForensics++",
@@ -87,25 +118,29 @@ def interactive_setup():
                 },
                 "fake_videos": {
                     "manipulated_sequences": [
+                        "DeepFakeDetection",
                         "Deepfakes",
                         "Face2Face",
+                        "FaceShifter",
                         "FaceSwap",
-                        "NeuralTextures",
-                        "DeepFakeDetection",
-                        "FaceShifter"
+                        "NeuralTextures"
                     ]
                 },
                 "splits_file": "splits/train.json",
                 "supported_extensions": [".mp4", ".avi", ".mov"],
                 "description": "Face manipulation detection dataset"
             },
-            "dfdc": {
-                "name": "DFDC",
-                "base_path": "DFDC",
-                "metadata_file": "metadata.json",
-                "folder_pattern": "dfdc_train_part_*",
+            "dfdc_classified": {
+                "name": "DFDC_Classified",
+                "base_path": "DFDC_classified",
+                "real_videos": [
+                    "real"
+                ],
+                "fake_videos": [
+                    "fake"
+                ],
                 "supported_extensions": [".mp4"],
-                "description": "Deepfake Detection Challenge dataset"
+                "description": "DFDC dataset pre-classified into real/fake folders"
             }
         },
         "processing": {
@@ -181,7 +216,32 @@ def validate_dataset_structure(config_file: str):
             
             if exists and dataset_name == "celebdf_v2":
                 # 检查CelebDF-v2子目录
-                for subdir in ["Celeb-real", "Celeb-synthesis", "YouTube-real"]:
+                for subdir in ["Celeb-real", "Celeb-synthesis"]:
+                    subdir_path = os.path.join(dataset_path, subdir)
+                    sub_exists = os.path.exists(subdir_path)
+                    sub_status = "✓" if sub_exists else "✗"
+                    print(f"    {sub_status} {subdir}")
+            
+            elif exists and dataset_name == "df40":
+                # 检查DF40子目录（全是fake）
+                fake_dirs = ["blendface", "e4s", "facedancer", "faceswap", "frames", "fsgan", "inswap", "mobileswap", "simswap"]
+                for subdir in fake_dirs:
+                    subdir_path = os.path.join(dataset_path, subdir)
+                    sub_exists = os.path.exists(subdir_path)
+                    sub_status = "✓" if sub_exists else "✗"
+                    print(f"    {sub_status} {subdir} (fake)")
+            
+            elif exists and dataset_name == "dfdc":
+                # 检查DFDC子目录
+                for subdir in ["real", "fake"]:
+                    subdir_path = os.path.join(dataset_path, subdir)
+                    sub_exists = os.path.exists(subdir_path)
+                    sub_status = "✓" if sub_exists else "✗"
+                    print(f"    {sub_status} {subdir}")
+            
+            elif exists and dataset_name == "dfdc_classified":
+                # 检查DFDC分类后的子目录
+                for subdir in ["real", "fake"]:
                     subdir_path = os.path.join(dataset_path, subdir)
                     sub_exists = os.path.exists(subdir_path)
                     sub_status = "✓" if sub_exists else "✗"
@@ -194,6 +254,15 @@ def validate_dataset_structure(config_file: str):
                     main_exists = os.path.exists(main_path)
                     main_status = "✓" if main_exists else "✗"
                     print(f"    {main_status} {main_dir}")
+                    
+                    if main_exists and main_dir == "manipulated_sequences":
+                        # 检查假视频子目录
+                        fake_dirs = ["DeepFakeDetection", "Deepfakes", "Face2Face", "FaceShifter", "FaceSwap", "NeuralTextures"]
+                        for fake_dir in fake_dirs:
+                            fake_path = os.path.join(main_path, fake_dir)
+                            fake_exists = os.path.exists(fake_path)
+                            fake_status = "✓" if fake_exists else "✗"
+                            print(f"      {fake_status} {fake_dir} (fake)")
         
         return True
         

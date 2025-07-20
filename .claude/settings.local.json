@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(conda list:*)",
+      "Bash(conda install:*)",
+      "Bash(conda activate:*)",
+      "Bash(where conda)",
+      "Bash(D:softwareanacondaScriptsactivate.bat aware-net)",
+      "Bash(D:softwareanacondaScriptsconda.exe run -n aware-net python --version)",
+      "Bash(pip freeze)",
+      "Bash(mkdir:*)",
+      "Bash(git add:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": []
+  }
+}
