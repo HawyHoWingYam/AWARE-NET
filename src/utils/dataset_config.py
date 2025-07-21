@@ -296,7 +296,7 @@ class DatasetPathConfig:
                                         "label": "real" if info.get("label") == "REAL" else "fake",
                                         "dataset": "dfdc",
                                         "folder": folder_name,
-                                        "split": "train"  # DFDC主要用于训练
+                                        "split": self._determine_dfdc_split(video_id, config)
                                     })
                         except Exception as e:
                             logging.error(f"Error reading metadata from {metadata_file}: {e}")
@@ -369,13 +369,22 @@ class DatasetPathConfig:
                 for video_file in os.listdir(real_path):
                     if any(video_file.endswith(ext) for ext in config["supported_extensions"]):
                         video_id = os.path.splitext(video_file)[0]
+                        full_video_id = f"{config['name'].lower()}_{real_dir}_{video_id}"
+                        
+                        # 根據數據集類型決定分割
+                        dataset_name = config["name"].lower().replace("-", "_")
+                        if dataset_name == "dfdc":
+                            split = self._determine_dfdc_split(full_video_id, config)
+                        else:
+                            split = "train"  # 其他數據集保持原邏輯
+                        
                         video_paths.append({
                             "video_path": os.path.join(real_path, video_file),
-                            "video_id": f"{config['name'].lower()}_{real_dir}_{video_id}",
+                            "video_id": full_video_id,
                             "label": "real",
-                            "dataset": config["name"].lower().replace("-", "_"),
+                            "dataset": dataset_name,
                             "source_dir": real_dir,
-                            "split": "train"
+                            "split": split
                         })
         
         # 处理伪造视频
@@ -385,54 +394,126 @@ class DatasetPathConfig:
                 for video_file in os.listdir(fake_path):
                     if any(video_file.endswith(ext) for ext in config["supported_extensions"]):
                         video_id = os.path.splitext(video_file)[0]
+                        full_video_id = f"{config['name'].lower()}_{fake_dir}_{video_id}"
+                        
+                        # 根據數據集類型決定分割
+                        dataset_name = config["name"].lower().replace("-", "_")
+                        if dataset_name == "dfdc":
+                            split = self._determine_dfdc_split(full_video_id, config)
+                        else:
+                            split = "train"  # 其他數據集保持原邏輯
+                        
                         video_paths.append({
                             "video_path": os.path.join(fake_path, video_file),
-                            "video_id": f"{config['name'].lower()}_{fake_dir}_{video_id}",
+                            "video_id": full_video_id,
                             "label": "fake",
-                            "dataset": config["name"].lower().replace("-", "_"),
+                            "dataset": dataset_name,
                             "source_dir": fake_dir,
-                            "split": "train"
+                            "split": split
                         })
         
         return video_paths
     
     def _determine_celebdf_split(self, video_file: str, config: Dict) -> str:
-        """确定CelebDF视频的数据集划分"""
-        test_list_file = os.path.join(config["full_base_path"], config["test_list_file"])
+        """确定CelebDF视频的数据集划分 - CelebDF-v2 没有官方测试集，完全自定义分割"""
+        import hashlib
+        import random
         
-        if os.path.exists(test_list_file):
-            try:
-                with open(test_list_file, 'r') as f:
-                    test_videos = set()
-                    for line in f:
-                        if line.strip():
-                            # 处理不同格式的测试列表文件
-                            parts = line.strip().split()
-                            if len(parts) >= 2:
-                                test_videos.add(parts[1])  # 通常第二列是文件名
-                            else:
-                                test_videos.add(parts[0])
-                
-                return "test" if video_file in test_videos else "train"
-            except Exception as e:
-                logging.error(f"Error reading test list file: {e}")
+        # 获取分割比例配置
+        output_config = self.config.get("output_structure", {})
+        train_ratio = output_config.get("train_split_ratio", 0.7)
+        val_ratio = output_config.get("val_split_ratio", 0.15)
+        test_ratio = output_config.get("test_split_ratio", 0.15)
         
-        return "train"  # 默认为训练集
+        # CelebDF-v2 没有官方测试集，直接进行 train/val/test 三分割
+        # 使用视频文件名作为种子，确保每次运行结果一致
+        video_hash = hashlib.md5(video_file.encode()).hexdigest()
+        random.seed(video_hash)
+        rand_val = random.random()
+        
+        if rand_val < train_ratio:
+            return "train"
+        elif rand_val < train_ratio + val_ratio:
+            return "val"
+        else:
+            return "test"
     
     def _determine_ffpp_split(self, video_id: str, config: Dict) -> str:
-        """确定FF++视频的数据集划分"""
-        splits_file = os.path.join(config["full_base_path"], config["splits_file"])
+        """确定FF++视频的数据集划分 - 支持train/val/test三分割"""
+        import hashlib
+        import random
         
-        if os.path.exists(splits_file):
-            try:
-                with open(splits_file, 'r') as f:
-                    train_videos = json.load(f)
-                
-                return "train" if video_id in train_videos else "test"
-            except Exception as e:
-                logging.error(f"Error reading splits file: {e}")
+        # 获取分割比例配置
+        output_config = self.config.get("output_structure", {})
+        train_ratio = output_config.get("train_split_ratio", 0.7)
+        val_ratio = output_config.get("val_split_ratio", 0.15)
+        test_ratio = output_config.get("test_split_ratio", 0.15)
+        preserve_official_test = output_config.get("preserve_official_test_sets", True)
         
-        return "train"  # 默认为训练集
+        # 首先检查是否有官方train/test分割文件
+        if preserve_official_test and "splits_file" in config:
+            splits_file = os.path.join(config["full_base_path"], config["splits_file"])
+            
+            if os.path.exists(splits_file):
+                try:
+                    with open(splits_file, 'r') as f:
+                        train_videos = json.load(f)
+                    
+                    # 如果在官方train列表中，进行train/val分割
+                    if video_id in train_videos:
+                        # 使用哈希值进行确定性分割
+                        video_hash = hashlib.md5(video_id.encode()).hexdigest()
+                        random.seed(video_hash)
+                        rand_val = random.random()
+                        
+                        # 在训练数据中按比例分割train/val
+                        train_val_ratio = train_ratio / (train_ratio + val_ratio)
+                        
+                        if rand_val < train_val_ratio:
+                            return "train"
+                        else:
+                            return "val"
+                    else:
+                        # 不在官方train列表中的视频作为测试集
+                        return "test"
+                except Exception as e:
+                    logging.error(f"Error reading splits file: {e}")
+        
+        # 如果没有官方分割文件，使用哈希值进行三分割
+        video_hash = hashlib.md5(video_id.encode()).hexdigest()
+        random.seed(video_hash)
+        rand_val = random.random()
+        
+        if rand_val < train_ratio:
+            return "train"
+        elif rand_val < train_ratio + val_ratio:
+            return "val"
+        else:
+            return "test"
+    
+    def _determine_dfdc_split(self, video_id: str, config: Dict) -> str:
+        """确定DFDC视频的数据集划分 - DFDC 没有官方测试集，完全自定义分割"""
+        import hashlib
+        import random
+        
+        # 获取分割比例配置
+        output_config = self.config.get("output_structure", {})
+        train_ratio = output_config.get("train_split_ratio", 0.7)
+        val_ratio = output_config.get("val_split_ratio", 0.15)
+        test_ratio = output_config.get("test_split_ratio", 0.15)
+        
+        # DFDC 没有官方测试集，直接进行 train/val/test 三分割
+        # 使用视频ID作为种子，确保每次运行结果一致
+        video_hash = hashlib.md5(video_id.encode()).hexdigest()
+        random.seed(video_hash)
+        rand_val = random.random()
+        
+        if rand_val < train_ratio:
+            return "train"
+        elif rand_val < train_ratio + val_ratio:
+            return "val"
+        else:
+            return "test"
     
     def update_base_paths(self, raw_datasets_path: str, processed_data_path: str):
         """更新基础路径"""

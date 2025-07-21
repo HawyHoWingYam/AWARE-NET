@@ -704,7 +704,7 @@ class GPUVideoProcessor:
 class DatasetPreprocessorV2:
     """数据集预处理器 V2 - 使用配置系统"""
     
-    def __init__(self, config_file: Optional[str] = None, video_backend: str = 'auto', face_detector: str = 'auto'):
+    def __init__(self, config_file: Optional[str] = None, video_backend: str = 'auto', face_detector: str = 'auto', test_percentage: float = 100.0):
         """
         初始化预处理器
         
@@ -712,9 +712,15 @@ class DatasetPreprocessorV2:
             config_file: 配置文件路径，如果为None则使用默认的dataset_paths.json
             video_backend: 視頻處理後端偏好
             face_detector: 人臉檢測器後端偏好
+            test_percentage: 測試時使用的數據集百分比 (1-100)
         """
         self.path_config = DatasetPathConfig(config_file)
         self.processing_config = self.path_config.get_processing_config()
+        
+        # 驗證測試參數
+        if not 1.0 <= test_percentage <= 100.0:
+            raise ValueError("test_percentage must be between 1.0 and 100.0")
+        self.test_percentage = test_percentage
         
         # 設置後端偏好
         self.processing_config['video_backend'] = video_backend
@@ -765,18 +771,24 @@ class DatasetPreprocessorV2:
         """创建必要的目录结构"""
         processed_path = self.path_config.config["base_paths"]["processed_data"]
         
-        dirs_to_create = [
-            f"{processed_path}/train/real",
-            f"{processed_path}/train/fake", 
-            f"{processed_path}/val/real",
-            f"{processed_path}/val/fake",
-            f"{processed_path}/final_test_sets/celebdf_v2/real",
-            f"{processed_path}/final_test_sets/celebdf_v2/fake",
-            f"{processed_path}/final_test_sets/ffpp/real",
-            f"{processed_path}/final_test_sets/ffpp/fake",
-            f"{processed_path}/final_test_sets/dfdc",
-            f"{processed_path}/manifests"
-        ]
+        # 新的目錄結構：按數據集分類
+        datasets = ['celebdf_v2', 'ffpp', 'dfdc']
+        splits = ['train', 'val']
+        labels = ['real', 'fake']
+        
+        dirs_to_create = [f"{processed_path}/manifests"]
+        
+        # 為 train 和 val 創建按數據集分類的目錄
+        for split in splits:
+            for dataset in datasets:
+                # 所有數據集都按 real/fake 分類
+                for label in labels:
+                    dirs_to_create.append(f"{processed_path}/{split}/{dataset}/{label}")
+        
+        # final_test_sets 也按 real/fake 分類
+        for dataset in datasets:
+            for label in labels:
+                dirs_to_create.append(f"{processed_path}/final_test_sets/{dataset}/{label}")
         
         for dir_path in dirs_to_create:
             Path(dir_path).mkdir(parents=True, exist_ok=True)
@@ -921,12 +933,13 @@ class DatasetPreprocessorV2:
         # 确定输出目录
         processed_path = self.path_config.config["base_paths"]["processed_data"]
         
-        if split == 'test' and dataset_name in ['celebdf_v2', 'ffpp']:
+        # 新的目錄結構邏輯 - 所有數據集都按 real/fake 分類
+        if split == 'test':
+            # 測試集放在 final_test_sets，所有數據集都按 real/fake 分類
             output_dir = f"{processed_path}/final_test_sets/{dataset_name}/{label}"
-        elif dataset_name == 'dfdc':
-            output_dir = f"{processed_path}/final_test_sets/dfdc"
         else:
-            output_dir = f"{processed_path}/{split}/{label}"
+            # train/val 按數據集分類，所有數據集都按 real/fake 分類
+            output_dir = f"{processed_path}/{split}/{dataset_name}/{label}"
         
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         
@@ -1084,6 +1097,17 @@ class DatasetPreprocessorV2:
             video_paths = self.path_config.get_all_video_paths(dataset_name)
             logging.info(f"Found {len(video_paths)} videos in {dataset_name}")
             
+            # 應用測試參數進行採樣
+            if self.test_percentage < 100.0:
+                import random
+                original_count = len(video_paths)
+                sample_size = int(len(video_paths) * self.test_percentage / 100.0)
+                
+                # 使用固定種子確保結果可重現
+                random.seed(42)
+                video_paths = random.sample(video_paths, sample_size)
+                logging.info(f"🧪 測試模式: 從 {original_count} 個視頻中採樣 {len(video_paths)} 個 ({self.test_percentage}%)")
+            
             # 計算最優線程數（基於CPU核心數，但限制以避免過度競爭GPU）
             import multiprocessing
             if hasattr(self, '_workers') and self._workers > 0:
@@ -1146,85 +1170,87 @@ class DatasetPreprocessorV2:
             return {"processed": 0, "total_faces": 0, "errors": 1}
     
     def generate_manifests(self):
-        """生成数据清单文件"""
+        """生成数据清单文件 - 適應新的目錄結構"""
         processed_path = self.path_config.config["base_paths"]["processed_data"]
         manifests_dir = f"{processed_path}/manifests"
         
-        # 为每个数据集划分生成清单
-        splits_to_process = [
-            ('train', f"{processed_path}/train"),
-            ('val', f"{processed_path}/val"),
-            ('test_celebdf_v2', f"{processed_path}/final_test_sets/celebdf_v2"),
-            ('test_ffpp', f"{processed_path}/final_test_sets/ffpp"),
-            ('test_dfdc', f"{processed_path}/final_test_sets/dfdc")
-        ]
+        # 新的目錄結構：train/val/final_test_sets 下都按數據集分類
+        datasets = ['celebdf_v2', 'ffpp', 'dfdc']
+        splits = ['train', 'val']
         
-        for split_name, split_path in splits_to_process:
+        # 為每個分割生成清單
+        for split in splits:
+            split_path = f"{processed_path}/{split}"
             if not os.path.exists(split_path):
                 continue
-            
+                
             manifest_data = []
             
-            # 处理有real/fake子目录的情况
-            if split_name.startswith('test_') and split_name != 'test_dfdc':
+            # 遍歷每個數據集
+            for dataset in datasets:
+                dataset_path = os.path.join(split_path, dataset)
+                if not os.path.exists(dataset_path):
+                    continue
+                
+                # 所有數據集都按 real/fake 分類
                 for label in ['real', 'fake']:
-                    label_path = os.path.join(split_path, label)
-                    
+                    label_path = os.path.join(dataset_path, label)
                     if not os.path.exists(label_path):
                         continue
                     
                     for image_file in os.listdir(label_path):
                         if image_file.endswith('.png'):
-                            relative_path = os.path.join(split_name.replace('test_', ''), label, image_file)
                             label_numeric = 0 if label == 'real' else 1
+                            relative_path = os.path.join(split, dataset, label, image_file)
                             
                             manifest_data.append({
                                 'filepath': relative_path,
                                 'label': label_numeric,
                                 'label_name': label,
-                                'dataset': split_name.replace('test_', '')
+                                'dataset': dataset
                             })
             
-            # 处理DFDC等混合目录的情况
-            elif split_name == 'test_dfdc':
-                for image_file in os.listdir(split_path):
-                    if image_file.endswith('.png'):
-                        # 从文件名推断标签 (需要在处理时保存这个信息)
-                        relative_path = os.path.join('dfdc', image_file)
-                        
-                        manifest_data.append({
-                            'filepath': relative_path,
-                            'label': -1,  # 需要后续处理
-                            'label_name': 'unknown',
-                            'dataset': 'dfdc'
-                        })
-            
-            # 处理train/val目录
-            else:
-                for label in ['real', 'fake']:
-                    label_path = os.path.join(split_path, label)
-                    
-                    if not os.path.exists(label_path):
-                        continue
-                    
-                    for image_file in os.listdir(label_path):
-                        if image_file.endswith('.png'):
-                            relative_path = os.path.join(split_name, label, image_file)
-                            label_numeric = 0 if label == 'real' else 1
-                            
-                            manifest_data.append({
-                                'filepath': relative_path,
-                                'label': label_numeric,
-                                'label_name': label,
-                                'dataset': 'mixed'
-                            })
-            
-            # 保存清单文件
+            # 保存分割清單文件
             if manifest_data:
                 manifest_df = pd.DataFrame(manifest_data)
-                manifest_file = os.path.join(manifests_dir, f"{split_name}_manifest.csv")
+                manifest_file = os.path.join(manifests_dir, f"{split}_manifest.csv")
                 manifest_df.to_csv(manifest_file, index=False)
                 logging.info(f"Generated manifest: {manifest_file} with {len(manifest_data)} samples")
+        
+        # 為 final_test_sets 生成清單
+        test_path = f"{processed_path}/final_test_sets"
+        if os.path.exists(test_path):
+            for dataset in datasets:
+                dataset_path = os.path.join(test_path, dataset)
+                if not os.path.exists(dataset_path):
+                    continue
+                
+                manifest_data = []
+                
+                # 所有數據集都按 real/fake 分類
+                for label in ['real', 'fake']:
+                    label_path = os.path.join(dataset_path, label)
+                    if not os.path.exists(label_path):
+                        continue
+                    
+                    for image_file in os.listdir(label_path):
+                        if image_file.endswith('.png'):
+                            label_numeric = 0 if label == 'real' else 1
+                            relative_path = os.path.join('final_test_sets', dataset, label, image_file)
+                            
+                            manifest_data.append({
+                                'filepath': relative_path,
+                                'label': label_numeric,
+                                'label_name': label,
+                                'dataset': dataset
+                            })
+                
+                # 保存數據集測試清單
+                if manifest_data:
+                    manifest_df = pd.DataFrame(manifest_data)
+                    manifest_file = os.path.join(manifests_dir, f"test_{dataset}_manifest.csv")
+                    manifest_df.to_csv(manifest_file, index=False)
+                    logging.info(f"Generated manifest: {manifest_file} with {len(manifest_data)} samples")
     
     def run_full_preprocessing(self, datasets: Optional[List[str]] = None):
         """运行完整的数据预处理流程"""
@@ -1359,6 +1385,8 @@ def main():
                         default='auto', help="Choose video processing backend for GPU acceleration")
     parser.add_argument("--face-detector", choices=['auto', 'yolov8', 'mediapipe', 'insightface', 'opencv_dnn', 'facenet_pytorch', 'mtcnn'], 
                         default='auto', help="Choose face detection backend for GPU acceleration")
+    parser.add_argument("--test-percentage", type=float, default=100.0, 
+                        help="Percentage of dataset to use for testing (1-100). Default: 100.0 (full dataset)")
     parser.add_argument("--workers", type=int, default=0, 
                         help="Number of parallel workers (0=auto, max 4 to balance GPU usage)")
     
@@ -1381,7 +1409,8 @@ def main():
         preprocessor = DatasetPreprocessorV2(
             config_file=args.config,
             video_backend=args.video_backend,
-            face_detector=args.face_detector
+            face_detector=args.face_detector,
+            test_percentage=args.test_percentage
         )
         preprocessor.set_workers(args.workers)
     except Exception as e:
