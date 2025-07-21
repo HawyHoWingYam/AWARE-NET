@@ -603,6 +603,12 @@ class GPUVideoProcessor:
                     else:
                         # 如果不支持索引，嘗試其他方法
                         frame = frames_tensor.asnumpy()[i] if hasattr(frames_tensor, 'asnumpy') else frames_tensor[i]
+                    
+                    # Decord返回RGB格式，需要轉換為BGR以保持一致性
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    frames.append((frame_idx, frame_bgr))
+                    continue  # 跳過異常處理部分
+                    
                 except Exception as e:
                     logging.warning(f"Frame {i} conversion failed: {e}, trying alternative method")
                     # 備用方法：轉換整個batch然後索引
@@ -612,7 +618,9 @@ class GPUVideoProcessor:
                         numpy_frames = frames_tensor.numpy() if hasattr(frames_tensor, 'numpy') else frames_tensor.asnumpy()
                     frame = numpy_frames[i]
                 
-                frames.append((frame_idx, frame))
+                # Decord返回RGB格式，需要轉換為BGR以保持一致性
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                frames.append((frame_idx, frame_bgr))
             
             gpu_status = "GPU" if gpu_used else "CPU"
             logging.info(f"✅ Decord讀取 {len(frames)} 幀 ({gpu_status})")
@@ -1024,16 +1032,16 @@ class DatasetPreprocessorV2:
                 if (x2_new - x1_new) < min_face_size or (y2_new - y1_new) < min_face_size:
                     continue
                 
-                # GPU加速的人脸裁剪和缩放
+                # GPU加速的人脸裁剪和缩放 - 修復顏色通道問題
                 if self.opencv_cuda_available:
-                    # 在GPU上进行裁剪和缩放
+                    # 在GPU上进行裁剪和缩放 (使用BGR格式的原始幀)
                     gpu_face_crop = gpu_frame[y1_new:y2_new, x1_new:x2_new]
                     gpu_face_resized = cv2.cuda.resize(gpu_face_crop, image_size)
-                    face_resized = gpu_face_resized.download()
+                    face_resized = gpu_face_resized.download()  # BGR格式
                 else:
-                    # CPU处理
-                    face_crop = frame[y1_new:y2_new, x1_new:x2_new]
-                    face_resized = cv2.resize(face_crop, image_size)
+                    # CPU处理 (使用BGR格式的原始幀)
+                    face_crop = frame[y1_new:y2_new, x1_new:x2_new]  # BGR格式
+                    face_resized = cv2.resize(face_crop, image_size)  # BGR格式
                 
                 # 准备文件名和路径
                 filename = f"{video_id}_frame_{frame_idx:06d}_face_{i:02d}.png"
