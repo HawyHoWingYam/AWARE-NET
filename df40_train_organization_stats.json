@@ -1,0 +1,45 @@
+{
+  "split_stats": {
+    "train": 484360,
+    "val": 104064,
+    "test": 103734
+  },
+  "category_stats": {
+    "entire_face_synthesis_danet": 22646,
+    "entire_face_synthesis_ddim": 21589,
+    "entire_face_synthesis_DiT": 21589,
+    "entire_face_synthesis_pixart": 21589,
+    "entire_face_synthesis_RDDM": 21589,
+    "entire_face_synthesis_sd2.1": 21589,
+    "entire_face_synthesis_SiT": 21589,
+    "entire_face_synthesis_StyleGAN2": 21589,
+    "entire_face_synthesis_StyleGAN3": 21589,
+    "entire_face_synthesis_StyleGANXL": 21589,
+    "entire_face_synthesis_VQGAN": 21589,
+    "face_reenactment_facevid2vid": 22815,
+    "face_reenactment_fomm": 22811,
+    "face_reenactment_hyperreenact": 18783,
+    "face_reenactment_lia": 22811,
+    "face_reenactment_mcnet": 22613,
+    "face_reenactment_MRAA": 22811,
+    "face_reenactment_one_shot_free": 22959,
+    "face_reenactment_pirender": 22914,
+    "face_reenactment_sadtalker": 22797,
+    "face_reenactment_tpsm": 22964,
+    "face_reenactment_wav2lip": 22682,
+    "face_swapping_blendface": 22513,
+    "face_swapping_e4s": 22779,
+    "face_swapping_facedancer": 22747,
+    "face_swapping_faceswap": 22852,
+    "face_swapping_fsgan": 21815,
+    "face_swapping_inswap": 27988,
+    "face_swapping_mobileswap": 22824,
+    "face_swapping_simswap": 31350,
+    "face_swapping_uniface": 11794
+  },
+  "split_ratios": {
+    "train": 69.97824196209535,
+    "val": 15.034717506696449,
+    "test": 14.987040531208192
+  }
+}
