@@ -1,369 +1,263 @@
-# AWARE-NET: Adaptive Weighted Averaging for Robust Ensemble Network in Deepfake Detection
+# AWARE-NET: Cascade Deepfake Detection System
 
-AWARE-NET is a PyTorch implementation of "Adaptive Weighted Averaging for Robust Ensemble Network in Deepfake Detection". The project implements a two-tier ensemble framework that hierarchically combines multiple instances of three state-of-the-art architectures: Xception, Res2Net101, and EfficientNet-B7.
+AWARE-NET implements a multi-stage cascade architecture for efficient deepfake detection. The system is designed with a fast filter approach, where Stage 1 serves as a high-speed preliminary filter using MobileNetV4-Hybrid-Medium, followed by more sophisticated analysis stages for complex samples.
 
-## Core Architecture
+## Current Implementation Status
 
-### Framework Design
-1. **Tier 1**: Averages predictions within each architecture to reduce model variance
-2. **Tier 2**: Learns optimal weights for each architecture's contribution through backpropagation
+✅ **Stage 1 Complete**: Fast filter using MobileNetV4-Hybrid-Medium with temperature scaling calibration  
+🔄 **Stage 2-5**: Advanced ensemble analyzers (planned)
 
-### Performance Results
-- **FF++** (FaceForensics++): AUC 99.22% (no aug.), 99.47% (aug.)
-- **CelebDF-v2**: AUC 100% (both configurations)
-- **Cross-dataset evaluation**: FF++ → CelebDF-v2, CelebDF-v2 → FF++
+## Stage 1: Fast Filter Architecture
+
+The current implementation focuses on Stage 1, which serves as the first line of defense in the cascade system:
+
+### Core Components
+1. **Model**: MobileNetV4-Hybrid-Medium (efficient mobile-optimized architecture)
+2. **Training**: Fine-tuned on combined dataset with comprehensive data augmentation
+3. **Calibration**: Temperature scaling for reliable probability outputs
+4. **Evaluation**: Comprehensive performance analysis with reliability diagrams
+
+### Stage 1 Performance
+- **Validation AUC**: >0.85 (target baseline)
+- **Cascade Strategy**: Conservative threshold (>0.98) for high-confidence real samples
+- **Processing Speed**: Optimized for real-time inference on mobile devices
+- **Calibration**: Significant ECE reduction through temperature scaling
 
 ## Quick Start Guide
 
 ### 1. Environment Setup
 
-#### Install Anaconda/Miniconda
-If not already installed:
-- **Anaconda** (full version): https://www.anaconda.com/products/distribution
-- **Miniconda** (lightweight): https://docs.conda.io/en/latest/miniconda.html
-
-#### Create Conda Environment (RTX 5060Ti/5090 Compatible)
+#### Create Conda Environment
 ```bash
-# Navigate to project directory
-cd D:\work\AWARE-NET
-
-# Create environment from environment.yml (without PyTorch)
+# Create environment from environment.yml
 conda env create -f environment.yml
-
-# Activate environment
 conda activate aware-net
-
-# Install PyTorch with CUDA 12.1 support for RTX 5060Ti/5090
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 
 # Verify GPU setup
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
-python -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
 ```
 
-#### Manual Environment Creation (Alternative Method)
+#### Update PyTorch (Required)
 ```bash
-# Create basic environment
-conda create -n aware-net python=3.12
-
-# Activate environment
-conda activate aware-net
-
-# Install PyTorch with CUDA 12.8 for RTX 5060Ti/5090
-conda install pytorch torchvision torchaudio pytorch-cuda=12.8 -c pytorch -c nvidia
-
-# Install other dependencies via conda (recommended for Windows)
-conda install opencv pandas numpy scikit-learn matplotlib seaborn tqdm lightgbm -c conda-forge
-conda install timm albumentations tensorboard -c conda-forge
-conda install wandb -c conda-forge
-
-# If pip has DLL errors on Windows, try conda alternatives:
-conda install -c conda-forge facenet-pytorch mtcnn
-# Or use conda-forge alternatives if the above packages are not available
+# Install latest PyTorch nightly for compatibility
+pip install --pre --upgrade --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/nightly/cu128
+pip install --pre --upgrade --no-cache-dir torchvision --extra-index-url https://download.pytorch.org/whl/nightly/cu128
 ```
 
-#### Troubleshooting Windows pip DLL Errors
-If you encounter `ImportError: DLL load failed while importing pyexpat`, try:
-```bash
-# Option 1: Reinstall pip
-conda install pip -c conda-forge --force-reinstall
-
-# Option 2: Use conda instead of pip for all packages
-conda install -c conda-forge timm albumentations tensorboard wandb
-
-# Option 3: For packages not available via conda, try:
-conda install -c pytorch-nightly facenet-pytorch  # if available
-conda install -c conda-forge mtcnn-pytorch  # alternative name
-
-# Option 4: If still having issues, recreate environment
-conda deactivate
-conda env remove -n aware-net
-conda env create -f environment.yml
-conda activate aware-net
-```
-
-### 2. Pre-trained Model Weights
-
-Download required weights to `weights/` directory:
-- **Res2Net101**: `res2net101_26w_4s-02a759a1.pth`
-- **EfficientNet-B7**: `tf_efficientnet_b7_ns.pth`
-
-```bash
-# Create weights directory
-mkdir weights
-# Download and place pre-trained weight files in weights/ directory
-```
-
-### 3. Dataset Configuration
+### 2. Dataset Configuration
 
 #### Supported Datasets
-- **FF++** (FaceForensics++)
-- **CelebDF-v2** 
-- **DFDC** (Deepfake Detection Challenge)
-- **DF40** (Pre-processed image dataset)
+- **CelebDF-v2**: Celebrity deepfake detection dataset
+- **FF++ (FaceForensics++)**: Face manipulation detection dataset
+- **DFDC**: Deepfake Detection Challenge dataset
+- **DF40**: Pre-processed face swap dataset
 
 #### Setup Dataset Paths
 ```bash
 # Interactive configuration setup
 python scripts/setup_dataset_config.py
 
-# Verify configuration
-python scripts/test_config.py
+# Validate configuration
+python scripts/preprocess_datasets_v2.py --validate-only
 ```
 
-### 4. Data Preprocessing
+### 3. Data Preprocessing
 
-AWARE-NET uses unified **256x256 PNG** format, consistent with DF40 dataset specifications.
+All datasets are processed to unified **256x256 PNG** format for consistency.
 
-#### Preprocessing Commands
+#### GPU-Accelerated Processing
 ```bash
-# Activate environment
-conda activate aware-net
-
-# View configuration summary
-python scripts/preprocess_datasets_v2.py --print-config
-
-# Validate paths (without processing)
-python scripts/preprocess_datasets_v2.py --validate-only
-
-# 🚀 GPU-Accelerated Multi-threaded Processing (Recommended)
+# Multi-threaded GPU processing (recommended)
 python scripts/preprocess_datasets_v2.py --datasets celebdf_v2 --video-backend decord --face-detector insightface --workers 4
 
-# Choose specific face detector
-python scripts/preprocess_datasets_v2.py --datasets celebdf_v2 --face-detector mediapipe
-python scripts/preprocess_datasets_v2.py --datasets celebdf_v2 --face-detector yolov8
-
-# Process all video datasets (automatically skips pre-processed DF40)
+# Process all datasets
 python scripts/preprocess_datasets_v2.py
 
-# Process specific datasets with optimized backends
-python scripts/preprocess_datasets_v2.py --datasets celebdf_v2 ffpp --video-backend decord --workers 3
-
-# Process only DFDC with single-threaded mode (debugging)
-python scripts/preprocess_datasets_v2.py --datasets dfdc --workers 1
+# View configuration
+python scripts/preprocess_datasets_v2.py --print-config
 ```
 
-#### Preprocessing Output
-- **Format**: 256x256 PNG images (DF40-compatible)
-- **Directory Structure**:
-  ```
-  processed_data/
-  ├── train/
-  │   ├── real/
-  │   └── fake/
-  ├── val/
-  │   ├── real/
-  │   └── fake/
-  ├── final_test_sets/
-  │   ├── celebdf_v2/
-  │   ├── ffpp/
-  │   └── dfdc/
-  └── manifests/
-      ├── train_manifest.csv
-      ├── val_manifest.csv
-      └── test_*_manifest.csv
-  ```
+#### Output Structure
+```
+processed_data/
+├── train/
+│   ├── real/
+│   └── fake/
+├── val/
+│   ├── real/
+│   └── fake/
+├── final_test_sets/
+│   ├── celebdf_v2/
+│   ├── ffpp/
+│   └── dfdc/
+└── manifests/
+    ├── train_manifest.csv
+    ├── val_manifest.csv
+    └── test_*_manifest.csv
+```
 
-#### Preprocessing Parameters (configured in config/dataset_paths.json)
-- **frame_interval**: 10 (extract every 10th frame)
-- **image_size**: [256, 256] (DF40-compatible)
-- **max_faces_per_video**: 50
-- **bbox_scale**: 1.3 (face bounding box expansion)
-- **min_face_size**: 80 (minimum face size)
+## Stage 1 Training Pipeline
 
-### 🚀 Multi-threaded GPU Processing (New Feature)
-
-#### Performance Improvements
-- **Single-threaded**: ~1.55s/video, 30-40% GPU utilization
-- **Multi-threaded (4 workers)**: ~0.4-0.8s/video, **70-85% GPU utilization**
-- **Speed improvement**: **2-4x faster processing**
-
-#### Supported Face Detection Backends
-1. **InsightFace** (Recommended) - High-performance GPU acceleration
-2. **MediaPipe** - Google's optimized face detection
-3. **YOLOv8** - General object detection with face capability
-4. **OpenCV DNN** - Lightweight CPU fallback
-5. **MTCNN** - Backup face detection method
-
-#### Supported Video Backends
-1. **Decord** (Recommended for Windows) - GPU-accelerated video processing
-2. **TorchVision.io** - PyTorch native video processing
-3. **OpenCV** - Universal CPU fallback
-
-#### Multi-threading Configuration
+### Task 1.1: Model Training
 ```bash
-# Optimal performance (recommended)
---workers 4              # 4 parallel workers (balances GPU utilization)
---video-backend decord    # GPU video processing for Windows
---face-detector insightface  # Fastest GPU face detection
-
-# Custom worker count
---workers 2               # Fewer workers for lower-end GPUs
---workers 1               # Single-threaded for debugging
-
-# Backend selection
---video-backend torchvision  # Alternative video backend
---face-detector mediapipe    # Alternative face detector
+# Train MobileNetV4-Hybrid-Medium model
+python src/stage1/train_stage1.py --data_dir processed_data --epochs 50 --batch_size 32 --lr 1e-4
 ```
 
-## Training and Evaluation
+**Features**:
+- Fine-tuned MobileNetV4-Hybrid-Medium from timm library
+- Binary classification with BCEWithLogitsLoss
+- AdamW optimizer with CosineAnnealingLR scheduler
+- Comprehensive data augmentation (RandomHorizontalFlip, ColorJitter, RandomAffine, GaussianBlur)
+- Automatic best model saving based on validation AUC
 
-### Basic Training
+### Task 1.2: Probability Calibration
 ```bash
-# Main training pipeline
-python main.py
-
-# Individual model training (when src/ directory is populated)
-python src/main.py
+# Calibrate model probabilities using temperature scaling
+python src/stage1/calibrate_model.py --model_path output/stage1/best_model.pth --data_dir processed_data
 ```
 
-### Testing and Validation
+**Features**:
+- Temperature scaling optimization using scipy.optimize
+- Minimizes Negative Log-Likelihood (NLL) loss
+- Generates reliability diagrams for calibration visualization
+- Saves optimal temperature parameter for inference
+
+### Task 1.3: Performance Evaluation
 ```bash
-# Run tests (check for existing test framework first)
-python -m pytest  # if pytest is used
-python -m unittest discover  # if unittest is used
-
-# Cross-dataset evaluation (when implemented)
-python src/cross_evaluation.py
+# Comprehensive performance evaluation
+python src/stage1/evaluate_stage1.py --model_path output/stage1/best_model.pth --temp_file output/stage1/calibration_temp.json
 ```
+
+**Metrics**:
+- AUC Score, F1-Score, Accuracy, Confusion Matrix
+- Expected Calibration Error (ECE)
+- ROC curves and reliability plots
+- Cascade threshold analysis (leakage and filtration rates)
 
 ## Project Structure
 
 ```
 AWARE-NET/
-├── src/                      # Core implementation files
-│   ├── utils/               # Utility modules (dataset_config.py)
-│   ├── config.py            # Central configuration
-│   ├── model.py             # Model definitions
-│   ├── ensemble.py          # Ensemble model implementation
-│   ├── dataset.py           # Dataset classes and processing
-│   ├── train.py             # Training process manager
-│   ├── experiments.py       # Experiment manager
-│   └── visualization.py     # Visualization tools
-├── scripts/                 # Data processing and setup scripts
+├── src/
+│   ├── stage1/                    # Stage 1 implementation
+│   │   ├── train_stage1.py       # Model training script
+│   │   ├── calibrate_model.py    # Probability calibration
+│   │   ├── evaluate_stage1.py    # Performance evaluation
+│   │   └── utils.py              # Shared utilities
+│   └── utils/
+│       └── dataset_config.py     # Dataset configuration management
+├── scripts/                      # Data processing scripts
 │   ├── preprocess_datasets_v2.py
-│   ├── setup_dataset_config.py
-│   └── test_config.py
-├── config/                  # Configuration files
-│   └── dataset_paths.json
-├── docs/                    # Documentation
-├── dataset/                 # Raw video datasets
-│   ├── CelebDF-v2/
-│   ├── FF++/
-│   ├── DFDC/
-│   └── DF40/
-├── processed_data/          # Processed face images
-├── weights/                 # Pre-trained model weights
-├── project_instruction/     # Project phase documentation
-├── environment.yml          # Conda environment configuration
-└── README.md
+│   └── setup_dataset_config.py
+├── config/
+│   └── dataset_paths.json       # Dataset path configuration
+├── docs/                        # Documentation
+├── processed_data/              # Processed face images (created by preprocessing)
+├── output/
+│   └── stage1/                  # Stage 1 training outputs
+│       ├── best_model.pth
+│       ├── calibration_temp.json
+│       └── evaluation_report.json
+├── project_instruction/         # Implementation documentation
+└── dataset/                     # Raw video datasets
 ```
 
-## Common Conda Commands
+## Technical Implementation Details
 
-```bash
-# List all environments
-conda env list
+### Model Architecture
+- **Base Model**: MobileNetV4-Hybrid-Medium (from timm library)
+- **Input Size**: 256×256 RGB images
+- **Output**: Single node for binary classification (real/fake)
+- **Optimization**: Fine-tuned on combined deepfake datasets
 
-# Activate AWARE-NET environment
-conda activate aware-net
-
-# Deactivate environment
-conda deactivate
-
-# Remove environment (if need to recreate)
-conda env remove -n aware-net
-
-# Update environment (if environment.yml changes)
-conda env update -f environment.yml
+### Training Configuration
+```python
+# Key training parameters
+model_name = "mobilenetv4_hybrid_medium.ix_e550_r256_in1k"
+loss_fn = torch.nn.BCEWithLogitsLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 ```
 
-## Dataset Configuration Management
-
-### Core Configuration Files
-- **`src/utils/dataset_config.py`**: Core configuration management class
-- **`config/dataset_paths.json`**: Your specific dataset path configuration
-- **`scripts/setup_dataset_config.py`**: Interactive configuration setup tool
-
-### Configuration Validation
-```bash
-# Validate all dataset paths
-python scripts/test_config.py
-
-# View current configuration
-python scripts/preprocess_datasets_v2.py --print-config
+### Data Augmentation Strategy
+```python
+train_transforms = transforms.Compose([
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+    transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 ```
 
-## Dataset Statistics (Current Configuration)
+### Calibration Method
+- **Technique**: Temperature scaling (simple and effective)
+- **Objective**: Minimize Negative Log-Likelihood
+- **Formula**: `calibrated_prob = sigmoid(logits / T)`
+- **Validation**: ECE and reliability diagrams
 
-After running `python scripts/test_config.py`:
-- **CelebDF-v2**: 6,529 videos found
-- **FF++**: 9,431 videos found
-- **DFDC**: 1,000 videos found (classified)
-- **DF40**: 206,662 pre-processed images found
+## Cascade Strategy Design
 
-## Troubleshooting
+### Stage 1 Threshold Analysis
+The evaluation script analyzes different confidence thresholds for cascade decisions:
+- **High Confidence (>0.98)**: Samples classified as "simple real" - filtered out
+- **Low/Medium Confidence**: Samples passed to Stage 2 for detailed analysis
+- **Leakage Rate**: Percentage of fake samples incorrectly passed as real
+- **Filtration Rate**: Percentage of samples filtered by Stage 1
 
-### Common Issues
-- **CUDA not available**: Verify NVIDIA drivers (≥537.13 for RTX 5060Ti/5090) and install PyTorch with CUDA 12.1
-- **Memory errors**: Reduce batch sizes in configuration (RTX 5060Ti: 16GB, RTX 5090: 32GB VRAM)
-- **Import errors**: Ensure PYTHONPATH includes src directory
-- **Face detection issues**: Switch between facenet-pytorch and mtcnn
-- **RTX 5090/5060Ti compatibility**: Use pytorch-cuda=12.1 or later versions
+### Success Metrics
+- **Training Convergence**: Validation AUC >0.85, F1-Score >0.80
+- **Calibration Effect**: ECE reduction >50%
+- **Cascade Efficiency**: At 0.98 threshold, leakage rate <5%, filtration rate >30%
 
-### Performance Optimization
-- Use gradient accumulation for large effective batch sizes
-- Enable mixed precision training when available
-- Implement proper data loading with multiple workers
+## GPU Processing Features
+
+### Multi-threaded Performance
+- **Single-threaded**: ~1.55s/video, 30-40% GPU utilization
+- **Multi-threaded (4 workers)**: ~0.4-0.8s/video, **70-85% GPU utilization**
+- **Speed improvement**: 2-4x faster processing
+
+### Supported Backends
+- **Face Detection**: InsightFace (GPU), MediaPipe, YOLOv8, MTCNN
+- **Video Processing**: Decord (GPU), TorchVision.io, OpenCV
 
 ## Environment Variables
 
-Optional environment variables:
 ```bash
 export CUDA_VISIBLE_DEVICES=0  # GPU selection
 export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"  # Python path for src imports
 ```
 
-## Development Guidelines
+## Troubleshooting
 
-### Model Training Pipeline
-1. Train individual models (Xception, Res2Net101, EfficientNet-B7) with/without augmentation
-2. Train ensemble with pre-trained individual models
-3. Perform cross-dataset evaluation for generalization testing
+### Common Issues
+- **CUDA not available**: Verify NVIDIA drivers and install PyTorch nightly builds
+- **Memory errors**: Reduce batch sizes in training configuration
+- **Import errors**: Ensure PYTHONPATH includes src directory
+- **Face detection issues**: Switch between different face detection backends
 
-### Code Conventions
-- Follow existing PyTorch patterns in the codebase
-- Use timm library for pre-trained models (MobileNetV4, EfficientNetV2, GenConViT)
-- Implement proper error handling for GPU/CPU compatibility
-- Use tqdm for progress tracking during long operations
+### Performance Optimization
+- Use gradient accumulation for large effective batch sizes
+- Enable mixed precision training when available
+- Implement proper data loading with multiple workers
+- Monitor GPU utilization during processing
 
-### Face Detection
-- Primary: facenet-pytorch for efficient and accurate detection
-- Alternative: mtcnn-pytorch as backup option
-- Configure detection parameters in main config
+## Development Roadmap
 
-## Key Features
+### Completed (Stage 1)
+- ✅ MobileNetV4-Hybrid-Medium training pipeline
+- ✅ Temperature scaling calibration
+- ✅ Comprehensive evaluation framework
+- ✅ Multi-threaded GPU preprocessing
+- ✅ Unified dataset configuration system
 
-### Flexible Dataset Configuration
-- JSON-based configuration system supporting multiple dataset formats
-- Automatic path validation and dataset discovery
-- Support for both video datasets (CelebDF-v2, FF++, DFDC) and image datasets (DF40)
-
-### Unified Preprocessing Pipeline
-- Standardized 256x256 PNG output format across all datasets
-- MTCNN-based face detection with configurable parameters
-- Automatic train/validation/test split generation
-- CSV manifest file generation for easy data loading
-
-### DF40 Integration
-- Seamless integration with pre-processed DF40 dataset
-- Automatic detection and skipping of already processed data
-- Consistent image specifications across all datasets
-
-## License
-
-This project is for research purposes only. Please refer to respective dataset licenses for usage restrictions.
+### Planned (Stages 2-5)
+- 🔄 Stage 2: Heterogeneous ensemble analyzer
+- 🔄 Stage 3: Cross-attention fusion
+- 🔄 Stage 4: Temporal consistency analysis
+- 🔄 Stage 5: Final classification with adaptive thresholding
 
 ## Citation
 
@@ -377,6 +271,6 @@ If you use this code in your research, please cite the original paper:
 }
 ```
 
-## Contact
+## License
 
-For questions and issues, please refer to the project documentation or create an issue in the repository.
+This project is for research purposes only. Please refer to respective dataset licenses for usage restrictions.

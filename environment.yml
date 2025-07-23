@@ -4,11 +4,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  # Core Python version (updated to latest stable)
-  - python=3.13  # Latest stable version with improved performance
+  # Core Python version (matches project requirements)
+  - python=3.12  # Compatible with current PyTorch nightly builds
 
-  # Note: PyTorch with CUDA support needs manual installation for RTX 5060Ti/5090
-  # Run after environment creation: conda install pytorch torchvision torchaudio pytorch-cuda=12.1
+  # Note: PyTorch nightly builds required for compatibility
+  # Install after environment creation via pip (see setup_environment.md for details)
 
   # Model loading and pre-trained models
   - timm  # PyTorch Image Models - for MobileNetV4, EfficientNetV2, GenConViT
@@ -19,7 +19,7 @@ dependencies:
   # Data science and evaluation
   - scikit-learn  # AUC, F1-Score calculation and probability calibration
   - pandas  # Data manifest file creation and management
-  - numpy  # Fundamental numerical computing (PyTorch 2.7+ compatible)
+  - numpy  # Fundamental numerical computing
   
   # Machine learning models
   - lightgbm  # Gradient boosting for meta-model training
@@ -42,7 +42,7 @@ dependencies:
     # GPU Video Processing (Windows optimized)
     - decord  # High-performance GPU video processing for Windows
     
-    # Advanced Face Detection (PyTorch 2.7+ compatible)
+    # Advanced Face Detection (GPU-accelerated backends)
     - insightface  # High-performance GPU face detection (recommended)
     - onnxruntime-gpu  # Required for InsightFace GPU acceleration
     - mediapipe  # Google's optimized face detection with GPU support
@@ -54,4 +54,4 @@ dependencies:
     - tensorboard  # Training visualization and monitoring
     - wandb  # Experiment tracking and visualization (optional)
     
-    # Note: facenet-pytorch removed due to PyTorch 2.7+ incompatibility
+    # Note: Multiple face detection backends supported for flexibility

@@ -1,7 +1,7 @@
 {
   "base_paths": {
-    "raw_datasets": "D:\\work\\AWARE-NET\\dataset",
-    "processed_data": "D:\\work\\AWARE-NET\\processed_data"
+    "raw_datasets": "/workspace/AWARE-NET/dataset",
+    "processed_data": "/workspace/AWARE-NET/processed_data"
   },
   "datasets": {
     "celebdf_v2": {
