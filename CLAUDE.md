@@ -180,3 +180,5 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"  # Python path for src imports
 - Use gradient accumulation for large effective batch sizes
 - Enable mixed precision training when available
 - Implement proper data loading with multiple workers
+
+## Personal Memory Notes

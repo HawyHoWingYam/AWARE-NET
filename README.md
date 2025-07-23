@@ -50,8 +50,8 @@ conda create -n aware-net python=3.12
 # Activate environment
 conda activate aware-net
 
-# Install PyTorch with CUDA 12.1 for RTX 5060Ti/5090
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+# Install PyTorch with CUDA 12.8 for RTX 5060Ti/5090
+conda install pytorch torchvision torchaudio pytorch-cuda=12.8 -c pytorch -c nvidia
 
 # Install other dependencies via conda (recommended for Windows)
 conda install opencv pandas numpy scikit-learn matplotlib seaborn tqdm lightgbm -c conda-forge

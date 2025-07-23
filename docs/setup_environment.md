@@ -1,5 +1,28 @@
 # Environment Setup Instructions
 
+## Updated Dependencies (2025-07-23)
+
+### ⚠️ CRITICAL: Required PyTorch Updates
+
+Before running any training or testing, update PyTorch and torchvision to the latest nightly builds:
+
+```bash
+# 1. Update torch (REQUIRED)
+pip install --pre --upgrade --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/nightly/cu128
+
+# 2. Update torchvision (REQUIRED)  
+pip install --pre --upgrade --no-cache-dir torchvision --extra-index-url https://download.pytorch.org/whl/nightly/cu128
+```
+
+**Note**: These nightly builds are required for compatibility with the training pipeline. Standard PyTorch versions may cause issues.
+
+### Verification After Update
+
+```bash
+python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
+python -c "import torchvision; print(f'torchvision: {torchvision.__version__}')"
+```
+
 ## 任務 0.1：環境配置完成
 
 ### Method 1: Using Conda (Recommended)
