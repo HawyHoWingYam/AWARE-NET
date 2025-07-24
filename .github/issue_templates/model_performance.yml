@@ -1,0 +1,145 @@
+name: 📊 Model Performance Issue
+description: Report performance issues with training, inference, or accuracy
+title: "[Performance]: "
+labels: ["performance", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report performance issues with model training, inference, or accuracy.
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      description: Which stage is affected?
+      options:
+        - Stage 1 - MobileNetV4 Fast Filter
+        - Stage 2 - EfficientNetV2-B3
+        - Stage 2 - GenConViT Hybrid
+        - Stage 2 - GenConViT Pretrained
+        - Cross-stage Integration
+        - Overall Pipeline
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Performance Issue Type
+      description: What type of performance issue is this?
+      options:
+        - Training Speed - Slow training time
+        - Inference Speed - Slow prediction time  
+        - Memory Usage - High RAM/VRAM consumption
+        - Model Accuracy - Poor detection performance
+        - Model Size - Model too large for mobile deployment
+        - GPU Utilization - Poor hardware utilization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_performance
+    attributes:
+      label: Current Performance
+      description: What performance are you currently seeing?
+      placeholder: |
+        Please include specific metrics:
+        - Training time: X minutes/epoch
+        - Inference time: X ms/image
+        - Memory usage: X GB VRAM
+        - Accuracy: X% AUC
+        - Model size: X MB
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_performance
+    attributes:
+      label: Expected Performance
+      description: What performance do you expect or need?
+      placeholder: |
+        Target metrics:
+        - Training time: < X minutes/epoch
+        - Inference time: < X ms/image
+        - Memory usage: < X GB VRAM
+        - Accuracy: > X% AUC
+        - Model size: < X MB
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Please provide relevant configuration information
+      placeholder: |
+        Training configuration:
+        - Batch size: 
+        - Learning rate:
+        - Model variant:
+        - Data preprocessing:
+        
+        Hardware:
+        - GPU model:
+        - VRAM available:
+        - CPU cores:
+        - RAM available:
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: How can we reproduce this performance issue?
+      placeholder: |
+        1. Run command: python script.py --config ...
+        2. Monitor performance using: nvidia-smi, htop, etc.
+        3. Observe issue: slow training, high memory usage, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data
+      description: Have you done any profiling? Please share results
+      render: text
+      placeholder: |
+        Include any profiling output:
+        - nvidia-smi output
+        - PyTorch profiler results
+        - Memory usage graphs
+        - Training logs
+
+  - type: textarea
+    id: tried_solutions
+    attributes:
+      label: Attempted Solutions
+      description: What have you tried to improve performance?
+      placeholder: |
+        List any optimization attempts:
+        - Reduced batch size
+        - Changed learning rate
+        - Used mixed precision training
+        - Modified data loading
+        - etc.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have provided specific performance metrics
+          required: true
+        - label: I have included hardware and configuration details
+          required: true  
+        - label: I have tried basic optimization approaches
+          required: false
+        - label: I can provide additional profiling data if needed
+          required: false

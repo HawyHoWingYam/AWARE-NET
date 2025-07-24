@@ -1,0 +1,137 @@
+2025-07-23 17:34:59,137 - INFO - === Enhanced AWARE-NET Manifest Regeneration ===
+2025-07-23 17:34:59,137 - INFO - Arguments: {'data_dir': 'processed_data', 'output_dir': None, 'formats': ['.png', '.jpg', '.jpeg'], 'backup': False, 'validate': True, 'verbose': True, 'dry_run': True}
+2025-07-23 17:34:59,137 - INFO - Processing data from: /workspace/AWARE-NET/processed_data
+2025-07-23 17:34:59,137 - INFO - Output manifests to: /workspace/AWARE-NET/processed_data/manifests
+2025-07-23 17:34:59,137 - INFO - Supported formats: ['.png', '.jpg', '.jpeg']
+2025-07-23 17:34:59,137 - INFO - 
+==================================================
+2025-07-23 17:34:59,137 - INFO - Generating manifest for train split...
+2025-07-23 17:34:59,137 - INFO - Found 4 datasets: ['celebdf_v2', 'df40', 'dfdc', 'ffpp']
+2025-07-23 17:34:59,140 - INFO -   Processing dataset: celebdf_v2
+2025-07-23 17:34:59,185 - DEBUG - Found 24648 image files in /workspace/AWARE-NET/processed_data/train/celebdf_v2/real
+2025-07-23 17:34:59,631 - INFO -     Real images: 24648/24648 valid
+2025-07-23 17:35:00,000 - DEBUG - Found 147773 image files in /workspace/AWARE-NET/processed_data/train/celebdf_v2/fake
+2025-07-23 17:35:02,712 - INFO -     Fake images: 147773/147773 valid
+2025-07-23 17:35:02,712 - INFO -     Dataset celebdf_v2 total: 172421 files (24648 real, 147773 fake)
+2025-07-23 17:35:02,713 - INFO -   Processing dataset: df40
+2025-07-23 17:35:02,713 - WARNING -     Real directory not found: /workspace/AWARE-NET/processed_data/train/df40/real
+2025-07-23 17:35:03,105 - DEBUG - Found 144663 image files in /workspace/AWARE-NET/processed_data/train/df40/fake
+2025-07-23 17:35:05,702 - INFO -     Fake images: 144663/144663 valid
+2025-07-23 17:35:05,703 - INFO -     Dataset df40 total: 144663 files (0 real, 144663 fake)
+2025-07-23 17:35:05,703 - INFO -   Processing dataset: dfdc
+2025-07-23 17:35:05,719 - DEBUG - Found 11130 image files in /workspace/AWARE-NET/processed_data/train/dfdc/real
+2025-07-23 17:35:05,922 - INFO -     Real images: 11130/11130 valid
+2025-07-23 17:35:05,938 - DEBUG - Found 11030 image files in /workspace/AWARE-NET/processed_data/train/dfdc/fake
+2025-07-23 17:35:06,139 - INFO -     Fake images: 11030/11030 valid
+2025-07-23 17:35:06,140 - INFO -     Dataset dfdc total: 22160 files (11130 real, 11030 fake)
+2025-07-23 17:35:06,140 - INFO -   Processing dataset: ffpp
+2025-07-23 17:35:06,239 - DEBUG - Found 42049 image files in /workspace/AWARE-NET/processed_data/train/ffpp/real
+2025-07-23 17:35:07,006 - INFO -     Real images: 42049/42049 valid
+2025-07-23 17:35:07,796 - DEBUG - Found 244586 image files in /workspace/AWARE-NET/processed_data/train/ffpp/fake
+2025-07-23 17:35:12,300 - INFO -     Fake images: 244586/244586 valid
+2025-07-23 17:35:12,300 - INFO -     Dataset ffpp total: 286635 files (42049 real, 244586 fake)
+2025-07-23 17:35:12,394 - INFO - Split train summary:
+2025-07-23 17:35:12,394 - INFO -   Total files: 625879
+2025-07-23 17:35:12,396 - INFO -   Real images: 77827
+2025-07-23 17:35:12,409 - INFO -   Fake images: 548052
+2025-07-23 17:35:12,509 - INFO - Training statistics:
+2025-07-23 17:35:12,509 - INFO -   Total: 625879 samples
+2025-07-23 17:35:12,509 - INFO -   Real: 77827 (12.4%)
+2025-07-23 17:35:12,509 - INFO -   Fake: 548052 (87.6%)
+2025-07-23 17:35:12,509 - INFO -   Class balance: 0.124
+2025-07-23 17:35:12,510 - INFO - 
+==================================================
+2025-07-23 17:35:12,510 - INFO - Generating manifest for val split...
+2025-07-23 17:35:12,510 - INFO - Found 4 datasets: ['celebdf_v2', 'df40', 'dfdc', 'ffpp']
+2025-07-23 17:35:12,511 - INFO -   Processing dataset: celebdf_v2
+2025-07-23 17:35:12,519 - DEBUG - Found 5646 image files in /workspace/AWARE-NET/processed_data/val/celebdf_v2/real
+2025-07-23 17:35:12,618 - INFO -     Real images: 5646/5646 valid
+2025-07-23 17:35:12,666 - DEBUG - Found 31414 image files in /workspace/AWARE-NET/processed_data/val/celebdf_v2/fake
+2025-07-23 17:35:13,218 - INFO -     Fake images: 31414/31414 valid
+2025-07-23 17:35:13,218 - INFO -     Dataset celebdf_v2 total: 37060 files (5646 real, 31414 fake)
+2025-07-23 17:35:13,218 - INFO -   Processing dataset: df40
+2025-07-23 17:35:13,218 - WARNING -     Real directory not found: /workspace/AWARE-NET/processed_data/val/df40/real
+2025-07-23 17:35:13,317 - DEBUG - Found 43771 image files in /workspace/AWARE-NET/processed_data/val/df40/fake
+2025-07-23 17:35:14,074 - INFO -     Fake images: 43771/43771 valid
+2025-07-23 17:35:14,074 - INFO -     Dataset df40 total: 43771 files (0 real, 43771 fake)
+2025-07-23 17:35:14,074 - INFO -   Processing dataset: dfdc
+2025-07-23 17:35:14,078 - DEBUG - Found 2334 image files in /workspace/AWARE-NET/processed_data/val/dfdc/real
+2025-07-23 17:35:14,119 - INFO -     Real images: 2334/2334 valid
+2025-07-23 17:35:14,121 - DEBUG - Found 2100 image files in /workspace/AWARE-NET/processed_data/val/dfdc/fake
+2025-07-23 17:35:14,158 - INFO -     Fake images: 2100/2100 valid
+2025-07-23 17:35:14,158 - INFO -     Dataset dfdc total: 4434 files (2334 real, 2100 fake)
+2025-07-23 17:35:14,158 - INFO -   Processing dataset: ffpp
+2025-07-23 17:35:14,182 - DEBUG - Found 9478 image files in /workspace/AWARE-NET/processed_data/val/ffpp/real
+2025-07-23 17:35:14,349 - INFO -     Real images: 9478/9478 valid
+2025-07-23 17:35:14,445 - DEBUG - Found 53495 image files in /workspace/AWARE-NET/processed_data/val/ffpp/fake
+2025-07-23 17:35:15,399 - INFO -     Fake images: 53495/53495 valid
+2025-07-23 17:35:15,399 - INFO -     Dataset ffpp total: 62973 files (9478 real, 53495 fake)
+2025-07-23 17:35:15,416 - INFO - Split val summary:
+2025-07-23 17:35:15,416 - INFO -   Total files: 148238
+2025-07-23 17:35:15,417 - INFO -   Real images: 17458
+2025-07-23 17:35:15,419 - INFO -   Fake images: 130780
+2025-07-23 17:35:15,442 - INFO - Validation statistics:
+2025-07-23 17:35:15,442 - INFO -   Total: 148238 samples
+2025-07-23 17:35:15,442 - INFO -   Real: 17458 (11.8%)
+2025-07-23 17:35:15,442 - INFO -   Fake: 130780 (88.2%)
+2025-07-23 17:35:15,442 - INFO -   Class balance: 0.118
+2025-07-23 17:35:15,442 - INFO - 
+==================================================
+2025-07-23 17:35:15,442 - INFO - Generating test set manifests...
+2025-07-23 17:35:15,443 - INFO - Found 4 test datasets: ['celebdf_v2', 'df40', 'dfdc', 'ffpp']
+2025-07-23 17:35:15,443 - INFO -   Processing test dataset: celebdf_v2
+2025-07-23 17:35:15,451 - DEBUG - Found 5467 image files in /workspace/AWARE-NET/processed_data/final_test_sets/celebdf_v2/real
+2025-07-23 17:35:15,551 - INFO -     Real images: 5467/5467 valid
+2025-07-23 17:35:15,612 - DEBUG - Found 33392 image files in /workspace/AWARE-NET/processed_data/final_test_sets/celebdf_v2/fake
+2025-07-23 17:35:16,225 - INFO -     Fake images: 33392/33392 valid
+2025-07-23 17:35:16,231 - INFO -     Test dataset celebdf_v2: 38859 total (5467 real, 33392 fake)
+2025-07-23 17:35:16,231 - INFO -   Processing test dataset: df40
+2025-07-23 17:35:16,231 - WARNING -     Real directory not found: /workspace/AWARE-NET/processed_data/final_test_sets/df40/real
+2025-07-23 17:35:16,312 - DEBUG - Found 43764 image files in /workspace/AWARE-NET/processed_data/final_test_sets/df40/fake
+2025-07-23 17:35:17,108 - INFO -     Fake images: 43764/43764 valid
+2025-07-23 17:35:17,114 - INFO -     Test dataset df40: 43764 total (0 real, 43764 fake)
+2025-07-23 17:35:17,114 - INFO -   Processing test dataset: dfdc
+2025-07-23 17:35:17,117 - DEBUG - Found 2433 image files in /workspace/AWARE-NET/processed_data/final_test_sets/dfdc/real
+2025-07-23 17:35:17,162 - INFO -     Real images: 2433/2433 valid
+2025-07-23 17:35:17,173 - DEBUG - Found 1970 image files in /workspace/AWARE-NET/processed_data/final_test_sets/dfdc/fake
+2025-07-23 17:35:17,210 - INFO -     Fake images: 1970/1970 valid
+2025-07-23 17:35:17,211 - INFO -     Test dataset dfdc: 4403 total (2433 real, 1970 fake)
+2025-07-23 17:35:17,211 - INFO -   Processing test dataset: ffpp
+2025-07-23 17:35:17,226 - DEBUG - Found 9284 image files in /workspace/AWARE-NET/processed_data/final_test_sets/ffpp/real
+2025-07-23 17:35:17,396 - INFO -     Real images: 9284/9284 valid
+2025-07-23 17:35:17,505 - DEBUG - Found 52648 image files in /workspace/AWARE-NET/processed_data/final_test_sets/ffpp/fake
+2025-07-23 17:35:18,474 - INFO -     Fake images: 52648/52648 valid
+2025-07-23 17:35:18,482 - INFO -     Test dataset ffpp: 61932 total (9284 real, 52648 fake)
+2025-07-23 17:35:18,482 - INFO - Generated 4 test manifests
+2025-07-23 17:35:18,486 - INFO - Test-test_celebdf_v2 statistics:
+2025-07-23 17:35:18,486 - INFO -   Total: 38859 samples
+2025-07-23 17:35:18,486 - INFO -   Real: 5467 (14.1%)
+2025-07-23 17:35:18,486 - INFO -   Fake: 33392 (85.9%)
+2025-07-23 17:35:18,486 - INFO -   Class balance: 0.141
+2025-07-23 17:35:18,489 - INFO - Test-test_df40 statistics:
+2025-07-23 17:35:18,489 - INFO -   Total: 43764 samples
+2025-07-23 17:35:18,489 - INFO -   Real: 0 (0.0%)
+2025-07-23 17:35:18,489 - INFO -   Fake: 43764 (100.0%)
+2025-07-23 17:35:18,489 - INFO -   Class balance: 0.000
+2025-07-23 17:35:18,490 - INFO - Test-test_dfdc statistics:
+2025-07-23 17:35:18,490 - INFO -   Total: 4403 samples
+2025-07-23 17:35:18,490 - INFO -   Real: 2433 (55.3%)
+2025-07-23 17:35:18,490 - INFO -   Fake: 1970 (44.7%)
+2025-07-23 17:35:18,490 - INFO -   Class balance: 0.447
+2025-07-23 17:35:18,494 - INFO - Test-test_ffpp statistics:
+2025-07-23 17:35:18,494 - INFO -   Total: 61932 samples
+2025-07-23 17:35:18,494 - INFO -   Real: 9284 (15.0%)
+2025-07-23 17:35:18,494 - INFO -   Fake: 52648 (85.0%)
+2025-07-23 17:35:18,494 - INFO -   Class balance: 0.150
+2025-07-23 17:35:18,495 - INFO - 
+============================================================
+2025-07-23 17:35:18,495 - INFO - === COMPREHENSIVE MANIFEST GENERATION SUMMARY ===
+2025-07-23 17:35:18,495 - INFO - 📊 Dataset Overview:
+2025-07-23 17:35:18,495 - INFO -    Training samples: 625,879
+2025-07-23 17:35:18,495 - INFO -    Validation samples: 148,238
+2025-07-23 17:35:18,495 - INFO -    Test samples: 148,958
+2025-07-23 17:35:18,495 - INFO -    Total samples: 923,075
+2025-07-23 17:35:18,495 - INFO - 📁 Manifests: 6 files would be generated
+2025-07-23 17:35:18,495 - INFO - ✅ Validation: No errors found
+2025-07-23 17:35:18,495 - INFO - 
+🔍 DRY RUN COMPLETE - No files were modified

@@ -1,0 +1,125 @@
+name: ✨ Feature Request
+description: Suggest a new feature for MobileDeepfakeDetection
+title: "[Feature]: "
+labels: ["feature", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this feature affect?
+      options:
+        - Stage 1 - MobileNetV4 Fast Filter
+        - Stage 2 - EfficientNet/GenConViT
+        - Stage 3 - Meta-model Integration
+        - Data Preprocessing
+        - Model Training
+        - Model Evaluation
+        - Mobile Deployment
+        - Documentation
+        - Infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve workflow
+        - High - Essential for project goals
+        - Critical - Blocking other work
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve?
+      placeholder: |
+        Describe the problem you're facing or the gap you've identified...
+        
+        Example: "Currently, Stage 2 GenConViT training takes too long because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed solution
+      placeholder: |
+        Describe how you think this feature should work...
+        
+        Example: "Add support for mixed precision training that would..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative approaches?
+      placeholder: Describe any alternative solutions you've considered...
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How would we know this feature is complete?
+      placeholder: |
+        List the specific requirements for this feature:
+        - [ ] Requirement 1
+        - [ ] Requirement 2
+        - [ ] Requirement 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Assessment 
+      description: What would be the impact of this feature?
+      placeholder: |
+        Consider:
+        - Performance improvements (speed, accuracy, memory usage)
+        - User experience improvements
+        - Development workflow improvements
+        - Potential risks or breaking changes
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Implementation Notes
+      description: Any technical details or implementation suggestions?
+      placeholder: |
+        If you have ideas about implementation:
+        - Specific libraries or techniques to use
+        - Files that would need to be modified
+        - Potential challenges or considerations
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this feature hasn't been requested before
+          required: true
+        - label: I have provided a clear problem statement and proposed solution
+          required: true
+        - label: I am willing to help implement or test this feature
+          required: false
+        - label: This feature aligns with the project's goals of mobile deepfake detection
+          required: true

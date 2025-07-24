@@ -1,0 +1,266 @@
+name: Documentation Sync
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'src/**'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'docs/**'
+  pull_request:
+    types: [closed]
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      sync_type:
+        description: 'Type of documentation sync'
+        required: true
+        type: choice
+        options:
+          - 'full-sync'
+          - 'api-docs-only'
+          - 'performance-benchmarks'
+          - 'architecture-update'
+
+jobs:
+  sync-documentation:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install mkdocs mkdocs-material
+          
+      - name: Detect changed components
+        id: changes
+        run: |
+          # Check what components were changed
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files: $CHANGED_FILES"
+          
+          if echo "$CHANGED_FILES" | grep -q "src/stage1/"; then
+            echo "stage1_changed=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "src/stage2/"; then
+            echo "stage2_changed=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "CLAUDE.md\|README.md"; then
+            echo "main_docs_changed=true" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Update performance benchmarks
+        if: steps.changes.outputs.stage1_changed == 'true' || steps.changes.outputs.stage2_changed == 'true'
+        run: |
+          echo "# Performance Benchmarks" > docs/performance_benchmarks.md
+          echo "" >> docs/performance_benchmarks.md
+          echo "_Auto-generated on $(date)_" >> docs/performance_benchmarks.md
+          echo "" >> docs/performance_benchmarks.md
+          
+          # Add Stage 1 benchmarks if available
+          if [ -f "output/stage1/evaluation_results.json" ]; then
+            echo "## Stage 1 - MobileNetV4 Fast Filter" >> docs/performance_benchmarks.md
+            echo "" >> docs/performance_benchmarks.md
+            
+            # Extract key metrics
+            python3 -c "
+import json
+try:
+    with open('output/stage1/evaluation_results.json') as f:
+        data = json.load(f)
+    print(f'- **Validation AUC**: {data.get(\"val_auc\", \"N/A\"):.4f}')
+    print(f'- **Accuracy**: {data.get(\"accuracy\", \"N/A\"):.4f}')
+    print(f'- **F1 Score**: {data.get(\"f1_score\", \"N/A\"):.4f}')
+    if 'ece_before' in data and 'ece_after' in data:
+        print(f'- **ECE (before calibration)**: {data[\"ece_before\"]:.4f}')
+        print(f'- **ECE (after calibration)**: {data[\"ece_after\"]:.4f}')
+except:
+    print('- Benchmarks will be updated after next training run')
+" >> docs/performance_benchmarks.md
+            echo "" >> docs/performance_benchmarks.md
+          fi
+          
+          # Add Stage 2 benchmarks if available
+          if [ -f "output/stage2/evaluation_results.json" ]; then
+            echo "## Stage 2 - EfficientNet/GenConViT" >> docs/performance_benchmarks.md
+            echo "" >> docs/performance_benchmarks.md
+            echo "- Benchmarks available after Stage 2 evaluation" >> docs/performance_benchmarks.md
+            echo "" >> docs/performance_benchmarks.md
+          fi
+          
+      - name: Generate API documentation
+        run: |
+          echo "# API Documentation" > docs/api_reference.md
+          echo "" >> docs/api_reference.md
+          echo "_Auto-generated from source code_" >> docs/api_reference.md
+          echo "" >> docs/api_reference.md
+          
+          # Document Stage 1 API
+          echo "## Stage 1 API" >> docs/api_reference.md
+          echo "" >> docs/api_reference.md
+          
+          if [ -f "src/stage1/train_stage1.py" ]; then
+            echo "### Training" >> docs/api_reference.md
+            echo "\`\`\`bash" >> docs/api_reference.md
+            echo "python src/stage1/train_stage1.py --help" >> docs/api_reference.md
+            echo "\`\`\`" >> docs/api_reference.md
+            echo "" >> docs/api_reference.md
+          fi
+          
+          if [ -f "src/stage1/evaluate_stage1.py" ]; then
+            echo "### Evaluation" >> docs/api_reference.md
+            echo "\`\`\`bash" >> docs/api_reference.md
+            echo "python src/stage1/evaluate_stage1.py --help" >> docs/api_reference.md
+            echo "\`\`\`" >> docs/api_reference.md
+            echo "" >> docs/api_reference.md
+          fi
+          
+          # Document Stage 2 API
+          echo "## Stage 2 API" >> docs/api_reference.md
+          echo "" >> docs/api_reference.md
+          
+          if [ -f "src/stage2/train_stage2_effnet.py" ]; then
+            echo "### EfficientNet Training" >> docs/api_reference.md
+            echo "\`\`\`bash" >> docs/api_reference.md
+            echo "python src/stage2/train_stage2_effnet.py --help" >> docs/api_reference.md
+            echo "\`\`\`" >> docs/api_reference.md
+            echo "" >> docs/api_reference.md
+          fi
+          
+          if [ -f "src/stage2/train_stage2_genconvit.py" ]; then
+            echo "### GenConViT Training" >> docs/api_reference.md
+            echo "\`\`\`bash" >> docs/api_reference.md
+            echo "python src/stage2/train_stage2_genconvit.py --help" >> docs/api_reference.md
+            echo "\`\`\`" >> docs/api_reference.md
+            echo "" >> docs/api_reference.md
+          fi
+          
+      - name: Update architecture documentation
+        if: steps.changes.outputs.stage1_changed == 'true' || steps.changes.outputs.stage2_changed == 'true'
+        run: |
+          echo "# System Architecture" > docs/architecture.md
+          echo "" >> docs/architecture.md
+          echo "_Auto-updated based on code changes_" >> docs/architecture.md
+          echo "" >> docs/architecture.md
+          
+          echo "## Overview" >> docs/architecture.md
+          echo "" >> docs/architecture.md
+          echo "MobileDeepfakeDetection implements a multi-stage cascade architecture:" >> docs/architecture.md
+          echo "" >> docs/architecture.md
+          
+          # Check implemented stages
+          if [ -d "src/stage1" ]; then
+            echo "### Stage 1: Fast Filter ✅" >> docs/architecture.md
+            echo "- **Model**: MobileNetV4-Hybrid-Medium" >> docs/architecture.md
+            echo "- **Purpose**: High-speed preliminary filtering" >> docs/architecture.md
+            echo "- **Output**: Binary classification with temperature scaling" >> docs/architecture.md
+            echo "" >> docs/architecture.md
+          fi
+          
+          if [ -d "src/stage2" ]; then
+            echo "### Stage 2: Sophisticated Analysis ✅" >> docs/architecture.md
+            echo "- **Models**: EfficientNetV2-B3, GenConViT (Hybrid/Pretrained)" >> docs/architecture.md
+            echo "- **Purpose**: Detailed analysis of uncertain samples" >> docs/architecture.md
+            echo "- **Features**: Dual-mode support, advanced architectures" >> docs/architecture.md
+            echo "" >> docs/architecture.md
+          fi
+          
+          echo "### Planned Stages 🔄" >> docs/architecture.md
+          echo "- **Stage 3**: Meta-model integration" >> docs/architecture.md
+          echo "- **Stage 4**: Mobile deployment optimization" >> docs/architecture.md
+          echo "- **Stage 5**: Comprehensive evaluation" >> docs/architecture.md
+          echo "" >> docs/architecture.md
+          
+      - name: Create documentation summary
+        run: |
+          echo "# Documentation Update Summary" > doc_update_summary.md
+          echo "" >> doc_update_summary.md
+          echo "**Date**: $(date)" >> doc_update_summary.md
+          echo "**Trigger**: ${{ github.event_name }}" >> doc_update_summary.md
+          echo "**Commit**: ${{ github.sha }}" >> doc_update_summary.md
+          echo "" >> doc_update_summary.md
+          
+          echo "## Updated Documentation" >> doc_update_summary.md
+          
+          if [ -f "docs/performance_benchmarks.md" ]; then
+            echo "- 📊 Performance benchmarks updated" >> doc_update_summary.md
+          fi
+          
+          if [ -f "docs/api_reference.md" ]; then
+            echo "- 📚 API reference generated" >> doc_update_summary.md
+          fi
+          
+          if [ -f "docs/architecture.md" ]; then
+            echo "- 🏗️ Architecture documentation updated" >> doc_update_summary.md
+          fi
+          
+          echo "" >> doc_update_summary.md
+          echo "All documentation is automatically synchronized with code changes." >> doc_update_summary.md
+          
+      - name: Commit documentation updates
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add any new or modified documentation
+          git add docs/ || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No documentation changes to commit"
+          else
+            git commit -m "docs: Auto-update documentation
+
+- Performance benchmarks updated
+- API reference generated  
+- Architecture documentation synchronized
+- Triggered by: ${{ github.event_name }}
+
+[skip ci]"
+            
+            git push origin ${{ github.ref_name }}
+            
+            echo "Documentation successfully updated and committed"
+          fi
+
+  wiki-sync:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Sync with Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚀 Wiki synchronization would happen here"
+          echo "In a full implementation, this would:"
+          echo "- Clone the wiki repository"
+          echo "- Update wiki pages based on doc changes"
+          echo "- Commit and push wiki updates"
+          echo "- Create links between code and documentation"
+          
+          # Example of what would be implemented:
+          # git clone https://github.com/${{ github.repository }}.wiki.git wiki
+          # cp docs/*.md wiki/
+          # cd wiki && git add . && git commit -m "Auto-sync from main repo" && git push

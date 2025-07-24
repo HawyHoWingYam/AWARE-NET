@@ -1,11 +1,68 @@
-# AWARE-NET: Cascade Deepfake Detection System
+# MobileDeepfakeDetection: AI-Driven Cascade Deepfake Detection 🤖
 
-AWARE-NET implements a multi-stage cascade architecture for efficient deepfake detection. The system is designed with a fast filter approach, where Stage 1 serves as a high-speed preliminary filter using MobileNetV4-Hybrid-Medium, followed by more sophisticated analysis stages for complex samples.
+[![GitHub](https://img.shields.io/badge/GitHub-HawyHoWingYam%2FMobileDeepfakeDetection-blue)](https://github.com/HawyHoWingYam/MobileDeepfakeDetection)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-Enabled-green)](https://claude.ai/code)
+[![AI Workflow](https://img.shields.io/badge/AI_Workflow-Active-purple)](#ai-driven-development)
+
+MobileDeepfakeDetection implements a multi-stage cascade architecture for efficient deepfake detection optimized for mobile deployment. The system features a revolutionary **AI-driven development workflow** where the entire development lifecycle is controlled through natural language commands.
+
+## 🚀 Key Features
+
+- **Multi-Stage Cascade Architecture**: Fast filter → Sophisticated analysis
+- **Mobile-Optimized**: Designed for real-time inference on mobile devices  
+- **AI-Driven Development**: 100% natural language workflow control
+- **GitHub CLI Integration**: Automated issue/PR/branch management
+- **Dual-Mode GenConViT**: Hybrid + Pretrained model support
 
 ## Current Implementation Status
 
 ✅ **Stage 1 Complete**: Fast filter using MobileNetV4-Hybrid-Medium with temperature scaling calibration  
-🔄 **Stage 2-5**: Advanced ensemble analyzers (planned)
+✅ **Stage 2 Complete**: EfficientNetV2-B3 + GenConViT dual-mode system
+✅ **AI Workflow**: Complete GitHub CLI + Claude Code integration
+🔄 **Stage 3-5**: Meta-model integration and deployment (planned)
+
+## 🤖 AI-Driven Development
+
+This project pioneered a revolutionary development approach where **100% of development operations** can be controlled through natural language commands. No more manual GitHub operations!
+
+### Natural Language Commands
+
+```bash
+# Issue Management
+@claude create issue for "Stage 2 GenConViT performance optimization"
+@claude analyze issue #123 and suggest implementation approach
+@claude assign issue #456 to appropriate team member
+
+# Pull Request Automation  
+@claude create PR for issue #123 with complete implementation
+@claude review PR #456 for security and performance issues
+@claude merge PR #789 if all checks pass and approved
+
+# Branch Management
+@claude create branch for issue #123 following naming conventions
+@claude switch to hybrid genconvit development branch
+@claude cleanup stale branches older than 30 days
+```
+
+### Slash Commands
+- `/fix-issue <number>` - Analyze issue and create fix PR
+- `/create-feature <description>` - Create feature branch and implementation
+- `/optimize-stage1` - Performance optimization for Stage 1 MobileNetV4
+- `/optimize-stage2` - Performance optimization for Stage 2 models
+- `/review-pr <number>` - Comprehensive PR review with suggestions
+
+### Automated Workflows
+- **Issue Triage**: Auto-labeling and assignment based on content analysis
+- **PR Review**: AI-driven security, performance, and code quality analysis
+- **Branch Management**: Automatic creation, naming, and cleanup
+- **Documentation Sync**: Auto-update Wiki and docs from code changes
+- **Performance Monitoring**: Automated benchmarking and optimization suggestions
+
+### Smart Features
+- **Context-Aware AI**: Automatically gathers relevant code, issues, and PR context
+- **Security Gates**: Multi-layer approval system for automated operations
+- **Asynchronous Processing**: Nightly AI analysis of complex tasks
+- **Knowledge Evolution**: CLAUDE.md rules auto-update from team decisions
 
 ## Stage 1: Fast Filter Architecture
 

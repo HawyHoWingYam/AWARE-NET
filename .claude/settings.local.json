@@ -13,13 +13,21 @@
       "Bash(git add:*)",
       "Bash(git config:*)",
       "Bash(git push:*)",
+      "Bash(gh:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh repo:*)",
+      "Bash(git:*)",
       "Bash(find:*)",
       "Bash(pip install:*)",
       "Bash(rm:*)",
       "Bash(mv:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:arxiv.org)",
-      "WebFetch(domain:huggingface.co)"
+      "WebFetch(domain:huggingface.co)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": []
   }

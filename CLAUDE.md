@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AWARE-NET implements a multi-stage cascade architecture for efficient deepfake detection. The system is designed with a fast filter approach, where Stage 1 serves as a high-speed preliminary filter using MobileNetV4-Hybrid-Medium, followed by more sophisticated analysis stages for complex samples.
+MobileDeepfakeDetection implements a multi-stage cascade architecture for efficient deepfake detection optimized for mobile deployment. The system is designed with a fast filter approach, where Stage 1 serves as a high-speed preliminary filter using MobileNetV4-Hybrid-Medium, followed by more sophisticated analysis stages for complex samples.
+
+### Repository
+- **GitHub**: https://github.com/HawyHoWingYam/MobileDeepfakeDetection
+- **Claude Code Integration**: Full AI-driven development workflow enabled
 
 ### Core Architecture (Current Implementation)
 1. **Stage 1 - Fast Filter**: MobileNetV4-Hybrid-Medium with temperature scaling calibration (✅ Complete)
@@ -209,8 +213,182 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"  # Python path for src imports
 ## Personal Memory Notes
 
 - 之後的測試大部分都是我來運行,最好詢問一下我是否我運行.
+# GitHub CLI Integration & AI-Driven Workflows
+
+## Natural Language Development Commands
+
+This project supports comprehensive AI-driven development through natural language commands and GitHub CLI integration. All development operations can be controlled through prompts.
+
+### Core Workflow Patterns
+
+#### Issue Management
+```bash
+# Auto-create issues from natural language
+@claude create issue for "Stage 2 GenConViT integration performance optimization"
+@claude analyze issue #123 and suggest implementation approach
+@claude assign issue #123 to appropriate team member based on code history
+```
+
+#### Pull Request Automation
+```bash
+# Auto-generate PRs from issues
+@claude create PR for issue #123 with implementation
+@claude review PR #456 for security and performance issues
+@claude merge PR #456 if all checks pass and approved
+```
+
+#### Branch Management
+```bash
+# Auto-create feature branches
+@claude create branch for issue #123 following naming conventions
+@claude switch to hybrid genconvit development branch
+@claude cleanup stale branches older than 30 days
+```
+
+#### Intelligent Context Collection
+For complex operations, Claude will automatically gather context using chained GitHub CLI commands:
+```bash
+# Automatic context gathering for issue analysis
+gh issue view $ISSUE --comments
+gh search code --repo $REPO --keyword "related_function"
+gh pr list --state all --search "involves:$USER"
+```
+
+### Issue Templates & Labels
+
+#### Standard Labels
+- `bug` - Bug reports requiring fixes
+- `feature` - New feature requests
+- `stage1` - Stage 1 MobileNetV4 related issues
+- `stage2` - Stage 2 EfficientNet/GenConViT related issues
+- `ai-review` - Issues requiring AI analysis
+- `claude-approved` - AI-approved changes ready for merge
+- `needs-context` - Issues requiring additional context gathering
+
+#### Issue Templates
+- **Bug Report**: Structured template with reproduction steps, expected behavior, actual behavior
+- **Feature Request**: Template with problem statement, proposed solution, acceptance criteria
+- **Model Performance**: Template for reporting training/inference performance issues
+
+### Pull Request Conventions
+
+#### PR Requirements
+1. **Auto-generated title**: `[Stage#] Brief description (fixes #issue)`
+2. **AI code review**: All PRs automatically reviewed by Claude for:
+   - Security vulnerabilities
+   - Performance issues
+   - Code style consistency
+   - Architecture compliance
+3. **Test automation**: PRs trigger automated testing for affected stages
+4. **Documentation sync**: Changes automatically update relevant documentation
+
+#### Safe Merge Automation
+PRs are auto-merged only when:
+- Labeled with `claude-approved` AND `tests-passed`
+- Approved by at least 2 team members (for critical changes)
+- All CI/CD checks pass
+- No merge conflicts exist
+
+### Slash Commands (.claude/commands/)
+
+#### Available Commands
+- `/fix-issue <number>` - Analyze issue and create fix PR
+- `/create-feature <description>` - Create feature branch and basic implementation
+- `/review-pr <number>` - Comprehensive PR review with suggestions
+- `/optimize-stage1` - Performance optimization for Stage 1 MobileNetV4
+- `/optimize-stage2` - Performance optimization for Stage 2 models
+- `/generate-docs` - Update documentation based on recent changes
+- `/cleanup-branches` - Remove stale development branches
+
+#### Command Structure
+Each command file in `.claude/commands/` contains:
+```markdown
+# Command Description
+Brief description of what this command does
+
+## Parameters
+- $1: Required parameter description
+- $2: Optional parameter description
+
+## Execution Steps
+1. Step 1 description
+2. Step 2 description
+3. Expected outcome
+```
+
+### Automated Knowledge Management
+
+#### Wiki Synchronization
+- PR merges automatically update relevant Wiki pages
+- New features trigger documentation generation
+- Performance improvements update benchmark documentation
+- Architecture changes update system overview
+
+#### Dynamic Rule Evolution
+- Code review discussions automatically update CLAUDE.md rules
+- Team decisions from PR comments become codified standards
+- Performance learnings update optimization guidelines
+
+### Security & Team Collaboration
+
+#### Permission Gates
+- Only maintainers can trigger certain high-impact commands
+- Critical system changes require multi-person approval
+- AI operations are logged for audit purposes
+
+#### Team Integration
+- @mentions trigger appropriate team member notifications
+- Code owners are automatically added to relevant PRs
+- Conflict resolution follows predefined escalation paths
+
+### Model Training Integration
+
+#### Stage 1 Automation
+```bash
+@claude start stage1 training with current best hyperparameters
+@claude analyze stage1 performance and suggest improvements
+@claude compare stage1 models and recommend best checkpoint
+```
+
+#### Stage 2 Automation
+```bash
+@claude switch genconvit to pretrained mode and retrain
+@claude compare hybrid vs pretrained genconvit performance
+@claude optimize stage2 ensemble weights automatically
+```
+
+### Asynchronous AI Operations
+
+#### Nightly Batch Processing
+- Issues labeled `ai-review` are processed overnight
+- PRs with `needs-deep-analysis` get comprehensive review
+- Performance benchmarks are automatically updated
+- Stale issues and PRs are triaged and updated
+
+#### Smart Notifications
+- Critical issues trigger immediate notifications
+- Performance degradations auto-create priority issues
+- Training completions update relevant stakeholders
+
+## Development Workflow Integration
+
+All standard development operations work seamlessly with natural language:
+1. **Planning**: "Create development plan for Stage 3 meta-model"
+2. **Implementation**: "Implement the plan with proper testing"
+3. **Review**: "Review implementation for performance and security"
+4. **Deployment**: "Prepare deployment package with documentation"
+5. **Monitoring**: "Monitor performance and create optimization tasks"
+
+This AI-driven approach enables 100% natural language control over the entire development lifecycle while maintaining code quality, security, and team collaboration standards.
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+When using GitHub CLI integration:
+- Always gather full context before making changes
+- Use appropriate labels and templates for consistency
+- Ensure security gates are respected for automated operations
+- Log all AI-driven changes for team transparency

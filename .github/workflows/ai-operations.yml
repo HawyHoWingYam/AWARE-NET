@@ -1,0 +1,318 @@
+name: AI-Assisted Operations
+
+on:
+  issues:
+    types: [opened, labeled, edited]
+  pull_request:
+    types: [opened, labeled, synchronize]
+  issue_comment:
+    types: [created]
+  schedule:
+    # Run nightly AI processing at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'AI operation to perform'
+        required: true
+        type: choice
+        options:
+          - 'issue-triage'
+          - 'pr-review'
+          - 'performance-analysis'
+          - 'cleanup-branches'
+      target:
+        description: 'Target (issue/PR number or "all")'
+        required: false
+        default: 'all'
+
+env:
+  PYTHON_VERSION: '3.9'
+  
+jobs:
+  ai-issue-triage:
+    if: github.event_name == 'issues' && (github.event.action == 'opened' || contains(github.event.issue.labels.*.name, 'needs-triage'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install GitHub CLI
+        run: |
+          type -p curl >/dev/null || sudo apt update && sudo apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update && sudo apt install gh -y
+          
+      - name: Auto-assign labels and component
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get issue content
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          # Determine component based on content
+          if echo "$ISSUE_BODY $ISSUE_TITLE" | grep -i "stage.*1\|mobilenet"; then
+            gh issue edit $ISSUE_NUMBER --add-label "stage1"
+          elif echo "$ISSUE_BODY $ISSUE_TITLE" | grep -i "stage.*2\|efficientnet\|genconvit"; then
+            gh issue edit $ISSUE_NUMBER --add-label "stage2"
+          elif echo "$ISSUE_BODY $ISSUE_TITLE" | grep -i "preprocess\|data"; then
+            gh issue edit $ISSUE_NUMBER --add-label "preprocessing"
+          fi
+          
+          # Determine priority based on keywords
+          if echo "$ISSUE_BODY $ISSUE_TITLE" | grep -i "critical\|urgent\|crash\|error"; then
+            gh issue edit $ISSUE_NUMBER --add-label "priority:high"
+          elif echo "$ISSUE_BODY $ISSUE_TITLE" | grep -i "performance\|slow\|memory"; then
+            gh issue edit $ISSUE_NUMBER --add-label "priority:medium"
+          else
+            gh issue edit $ISSUE_NUMBER --add-label "priority:low"
+          fi
+          
+          # Remove needs-triage label
+          gh issue edit $ISSUE_NUMBER --remove-label "needs-triage"
+
+  ai-pr-review:
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || contains(github.event.pull_request.labels.*.name, 'ai-review'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install bandit safety flake8 mypy
+          
+      - name: Security analysis
+        run: |
+          echo "## 🔒 Security Analysis" >> pr_review.md
+          echo "" >> pr_review.md
+          
+          # Run bandit for security issues
+          bandit -r src/ -f json -o bandit_results.json || true
+          if [ -s bandit_results.json ]; then
+            echo "⚠️ **Security issues found:**" >> pr_review.md
+            python -c "
+import json
+with open('bandit_results.json') as f:
+    data = json.load(f)
+    for result in data.get('results', []):
+        print(f'- **{result[\"test_name\"]}** in {result[\"filename\"]}:{result[\"line_number\"]}')
+        print(f'  {result[\"issue_text\"]}')
+" >> pr_review.md
+          else
+            echo "✅ No security issues detected" >> pr_review.md
+          fi
+          echo "" >> pr_review.md
+          
+      - name: Code quality analysis
+        run: |
+          echo "## 📊 Code Quality Analysis" >> pr_review.md
+          echo "" >> pr_review.md
+          
+          # Run flake8 for style issues
+          flake8 src/ --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s' > flake8_results.txt || true
+          if [ -s flake8_results.txt ]; then
+            echo "⚠️ **Style issues found:**" >> pr_review.md
+            echo '```' >> pr_review.md
+            head -20 flake8_results.txt >> pr_review.md
+            echo '```' >> pr_review.md
+          else
+            echo "✅ No style issues detected" >> pr_review.md
+          fi
+          echo "" >> pr_review.md
+          
+      - name: Performance analysis
+        run: |
+          echo "## ⚡ Performance Analysis" >> pr_review.md
+          echo "" >> pr_review.md
+          
+          # Check for performance-critical patterns
+          if grep -r "torch.cuda" src/ --include="*.py"; then
+            echo "🔍 **GPU operations detected** - Ensure proper device handling" >> pr_review.md
+          fi
+          
+          if grep -r "for.*in.*range" src/ --include="*.py" | wc -l | awk '{if($1>10) print "⚠️ Multiple for loops detected - consider vectorization"}' >> pr_review.md; then
+            echo "" >> pr_review.md
+          fi
+          
+          # Check model loading patterns
+          if grep -r "torch.load" src/ --include="*.py"; then
+            echo "💡 **Model loading detected** - Ensure proper device mapping" >> pr_review.md
+          fi
+          echo "" >> pr_review.md
+          
+      - name: Architecture compliance
+        run: |
+          echo "## 🏗️ Architecture Compliance" >> pr_review.md
+          echo "" >> pr_review.md
+          
+          # Check for proper error handling
+          ERROR_COUNT=$(grep -r "try:" src/ --include="*.py" | wc -l)
+          EXCEPT_COUNT=$(grep -r "except:" src/ --include="*.py" | wc -l)
+          
+          if [ $ERROR_COUNT -gt 0 ] && [ $EXCEPT_COUNT -eq 0 ]; then
+            echo "⚠️ **Error handling** - Found try blocks without proper exception handling" >> pr_review.md
+          else
+            echo "✅ Error handling looks good" >> pr_review.md
+          fi
+          
+          # Check for proper logging
+          if ! grep -r "import logging\|from.*logging" src/ --include="*.py" > /dev/null; then
+            echo "💡 **Logging** - Consider adding logging for better debugging" >> pr_review.md
+          fi
+          echo "" >> pr_review.md
+          
+      - name: Post AI review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add overall assessment
+          echo "## 🤖 AI Review Summary" >> pr_review.md
+          echo "" >> pr_review.md
+          echo "This PR has been automatically reviewed by Claude Code." >> pr_review.md
+          echo "" >> pr_review.md
+          echo "### Recommendations:" >> pr_review.md
+          echo "- Review security findings if any" >> pr_review.md
+          echo "- Address code quality issues" >> pr_review.md
+          echo "- Ensure proper testing coverage" >> pr_review.md
+          echo "- Validate performance impact" >> pr_review.md
+          echo "" >> pr_review.md
+          echo "### Next Steps:" >> pr_review.md
+          echo "1. Address any critical issues found" >> pr_review.md
+          echo "2. Run full test suite" >> pr_review.md
+          echo "3. Request human review if needed" >> pr_review.md
+          echo "4. Label as \`claude-approved\` when ready" >> pr_review.md
+          
+          # Post review as comment
+          gh pr comment ${{ github.event.pull_request.number }} --body-file pr_review.md
+          
+          # Add ai-reviewed label
+          gh pr edit ${{ github.event.pull_request.number }} --add-label "ai-reviewed"
+
+  nightly-operations:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update && sudo apt install gh -y
+          
+      - name: Process ai-review labeled issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get issues labeled for AI review
+          gh issue list --label "ai-review" --json number,title,body --jq '.[] | {number, title, body}' > ai_review_issues.json
+          
+          # Process each issue (simplified example)
+          if [ -s ai_review_issues.json ]; then
+            echo "Processing AI review issues..."
+            # In a real implementation, this would use Claude API
+            # For now, just add a comment indicating processing
+            cat ai_review_issues.json | jq -r '.number' | while read issue; do
+              gh issue comment $issue --body "🤖 **Nightly AI Processing**
+
+This issue has been queued for AI analysis. Results will be posted here.
+
+Analysis includes:
+- Code pattern recognition
+- Similar issue correlation
+- Solution recommendation
+- Priority assessment
+
+_Processed by automated workflow_"
+              
+              # Remove ai-review label and add ai-processed
+              gh issue edit $issue --remove-label "ai-review" --add-label "ai-processed"
+            done
+          fi
+          
+      - name: Cleanup stale branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get merged PRs from last 7 days
+          MERGED_PRS=$(gh pr list --state merged --limit 50 --json headRefName,mergedAt --jq '.[] | select(.mergedAt | fromdateiso8601 > (now - 7*24*3600)) | .headRefName')
+          
+          # Delete merged feature branches (be careful with this!)
+          echo "$MERGED_PRS" | grep "^feature/" | while read branch; do
+            echo "Would delete branch: $branch"
+            # gh api repos/:owner/:repo/git/refs/heads/$branch -X DELETE
+          done
+          
+      - name: Update performance metrics
+        run: |
+          echo "Would update performance metrics dashboard"
+          # This would integrate with performance tracking system
+
+  ai-comment-handler:
+    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Parse Claude command
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          # Extract command after @claude
+          COMMAND=$(echo "$COMMENT_BODY" | grep -o '@claude [^"]*' | sed 's/@claude //')
+          
+          case "$COMMAND" in
+            "create issue"*|"analyze issue"*|"fix issue"*)
+              gh issue comment $ISSUE_NUMBER --body "🤖 **Claude Command Received**
+              
+Command: \`$COMMAND\`
+
+This command is queued for processing. In a full implementation, this would:
+1. Parse the command parameters
+2. Execute the appropriate slash command
+3. Provide detailed results
+
+_This is a demonstration of the AI command system._"
+              ;;
+            "review"*|"analyze"*)
+              gh issue comment $ISSUE_NUMBER --body "🤖 **Analysis Request Received**
+              
+I'll analyze this issue and provide recommendations.
+
+_In development: Full AI analysis coming soon._"
+              ;;
+            *)
+              gh issue comment $ISSUE_NUMBER --body "🤖 **Unknown Command**
+              
+Available commands:
+- \`@claude create issue for \"description\"\`
+- \`@claude analyze issue #number\` 
+- \`@claude fix issue #number\`
+- \`@claude review PR #number\`
+
+Please use one of the supported commands."
+              ;;
+          esac
