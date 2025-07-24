@@ -174,7 +174,7 @@ Stage 1 training parameters are configured via command-line arguments:
 
 ### Code Conventions
 - Follow existing PyTorch patterns in the codebase
-- Use timm library for pre-trained models (MobileNetV4, EfficientNetV2, GenConViT)
+- Use timm library for pre-trained models (MobileNetV4, EfficientNetV2) and GenConViT from Hugging Face/GitHub
 - Implement proper error handling for GPU/CPU compatibility
 - Use tqdm for progress tracking during long operations
 
