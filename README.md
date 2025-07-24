@@ -1,4 +1,4 @@
-# MobileDeepfakeDetection: AI-Driven Cascade Deepfake Detection 🤖
+# MobileDeepfakeDetection 🤖
 
 [![GitHub](https://img.shields.io/badge/GitHub-HawyHoWingYam%2FMobileDeepfakeDetection-blue)](https://github.com/HawyHoWingYam/MobileDeepfakeDetection)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-Enabled-green)](https://claude.ai/code)
